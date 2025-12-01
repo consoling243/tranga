@@ -58,7 +58,7 @@ public class WeebCentral : MangaConnector
                 if (document.DocumentNode.SelectSingleNode("//button[contains(text(),\"No Data\")]") != null)
                     break;
 
-                if (document.GetNodesWith("q4_9") is not { Count: > 0 } resultNodes)
+                if (document.GetNodesWith2("q4_9") is not { Count: > 0 } resultNodes)
                     return [];
 
                 IEnumerable<string> urls = resultNodes
@@ -123,7 +123,7 @@ public class WeebCentral : MangaConnector
             HtmlDocument document = result.CreateDocument();
 
             // ------------------- BASIC INFO -------------------
-            if (document.GetNodeWith("q1_1")?.GetAttributeValue("title", string.Empty) is not
+            if (document.GetNodeWith2("q1_1")?.GetAttributeValue("title", string.Empty) is not
                 { Length: > 0 } name)
             {
                 Log.Debug("Name not found.");
@@ -131,9 +131,9 @@ public class WeebCentral : MangaConnector
             }
 
             name = HttpUtility.HtmlDecode(name);
-            string description = HttpUtility.HtmlDecode(document.GetNodeWith("0a_9")?.InnerText ?? string.Empty);
+            string description = HttpUtility.HtmlDecode(document.GetNodeWith2("0a_9")?.InnerText ?? string.Empty);
 
-            if (document.GetNodeWith("q1_1")?.GetAttributeValue("src", string.Empty) is not
+            if (document.GetNodeWith2("q1_1")?.GetAttributeValue("src", string.Empty) is not
                 { Length: > 0 } coverRelative)
             {
                 Log.Debug("Cover not found.");
@@ -147,7 +147,7 @@ public class WeebCentral : MangaConnector
             string coverUrl = $"{baseUrl.Value}{coverRelative}";
 
             // ------------------- RELEASE STATUS -------------------
-            MangaReleaseStatus releaseStatus = document.GetNodeWith("Yn_5")?.InnerText.ToLower() switch
+            MangaReleaseStatus releaseStatus = document.GetNodeWith2("Yn_5")?.InnerText.ToLower() switch
             {
                 "pending"   => MangaReleaseStatus.Unreleased,
                 "ongoing"   => MangaReleaseStatus.Continuing,
@@ -158,14 +158,14 @@ public class WeebCentral : MangaConnector
             };
 
             // ------------------- AUTHORS -------------------
-            ICollection<Author> authors = document.GetNodeWith("tz_4")?
+            ICollection<Author> authors = document.GetNodeWith2("tz_4")?
                 .ChildNodes.Where(n => n.Name == "a")
                 .Select(n => HttpUtility.HtmlDecode(n.InnerText))
                 .Select(t => new Author(t))
                 .ToList() ?? [];
 
             // ------------------- TAGS -------------------
-            ICollection<MangaTag> mangaTags = document.GetNodesWith("kd_0")?
+            ICollection<MangaTag> mangaTags = document.GetNodesWith2("kd_0")?
                 .SelectMany(n =>
                 {
                     string text = HttpUtility.HtmlDecode(n.InnerText);
@@ -175,7 +175,7 @@ public class WeebCentral : MangaConnector
                 .ToList() ?? [];
 
             // ------------------- ALT‑TITLES -------------------
-            ICollection<AltTitle> altTitles = document.GetNodeWith("tz_2")?
+            ICollection<AltTitle> altTitles = document.GetNodeWith2("tz_2")?
                 .ChildNodes.Where(n => n.InnerText.Trim().Length > 1)
                 ?.SelectMany(n =>
                 {
@@ -233,7 +233,7 @@ public class WeebCentral : MangaConnector
         {
             HtmlDocument document = result.CreateDocument();
 
-            if (document.GetNodesWith("8t_8") is not { } chapterNodes)
+            if (document.GetNodesWith2("8t_8") is not { } chapterNodes)
             {
                 Log.Debug("No chapters found.");
                 return null;
@@ -374,14 +374,14 @@ internal static class WeebCentralHelper
         return document;
     }
 
-    //internal static HtmlNode? GetNodeWith(this HtmlDocument document, string search) =>
-    //    document.DocumentNode.SelectSingleNode("/html").GetNodeWith(search);
+    internal static HtmlNode? GetNodeWith2(this HtmlDocument document, string search) =>
+        document.DocumentNode.SelectSingleNode("/html").GetNodeWith(search);
 
     internal static HtmlNode? GetNodeWith(this HtmlNode node, string search) =>
         node.SelectNodes($"{node.XPath}//*[@qkey='{search}']")?.FirstOrDefault();
 
-    //internal static HtmlNodeCollection? GetNodesWith(this HtmlDocument document, string search) =>
-    //    document.DocumentNode.SelectSingleNode("/html ").GetNodesWith(search);
+    internal static HtmlNodeCollection? GetNodesWith2(this HtmlDocument document, string search) =>
+        document.DocumentNode.SelectSingleNode("/html ").GetNodesWith(search);
 
     // ReSharper disable once ReturnTypeCanBeNotNullable HAP nullable
     internal static HtmlNodeCollection? GetNodesWith(this HtmlNode node, string search) =>
