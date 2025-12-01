@@ -274,9 +274,9 @@ internal static class MangaParkHelper
         return document;
     }
 
-    internal static HtmlNode? GetNodeWith(this HtmlDocument document, string search) => document.DocumentNode.SelectSingleNode("/html").GetNodeWith(search);
+    //internal static HtmlNode? GetNodeWith(this HtmlDocument document, string search) => document.DocumentNode.SelectSingleNode("/html").GetNodeWith(search);
     internal static HtmlNode? GetNodeWith(this HtmlNode node, string search) => node.SelectNodes($"{node.XPath}//*[@qkey='{search}']")?.FirstOrDefault();
-    internal static HtmlNodeCollection? GetNodesWith(this HtmlDocument document, string search) => document.DocumentNode.SelectSingleNode("/html ").GetNodesWith(search);
+    //internal static HtmlNodeCollection? GetNodesWith(this HtmlDocument document, string search) => document.DocumentNode.SelectSingleNode("/html ").GetNodesWith(search);
     // ReSharper disable once ReturnTypeCanBeNotNullable HAP nullable
     internal static HtmlNodeCollection? GetNodesWith(this HtmlNode node, string search) => node.SelectNodes($"{node.XPath}//*[@qkey='{search}']");
 }
