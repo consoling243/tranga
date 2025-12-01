@@ -19,7 +19,7 @@ public class WeebCentral : MangaConnector
         nameof(WeebCentral),
         ["en"],
         ["weebcentral.com", "www.weebcentral.com"],
-        "/favicon.png")
+        "https://weebcentral.com/favicon.ico")
     {
         this.downloadClient = new HttpDownloadClient();
     }
