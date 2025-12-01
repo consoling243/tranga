@@ -1,0 +1,67 @@
+# docker-compose.yaml – patched to use the "consoling243‑patch‑1" branch images
+services:
+  tranga-api:
+    # Pull the image that was built from the current branch
+    image: consoling243/tranga-api:consoling243-patch-1
+    container_name: tranga-api
+    user: "${UID}:${GID}"
+    volumes:
+      - ./Manga:/Manga
+      - ./settings:/usr/share/tranga-api
+    ports:
+      - "6531:6532"
+    depends_on:
+      tranga-pg:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=tranga-pg
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      # - FLARESOLVERR_URL=
+      # - POSTGRES_COMMAND_TIMEOUT=30
+      # - POSTGRES_CONNECTION_TIMEOUT=30
+      # - CHECK_CHAPTERS_BEFORE_START=true
+      # - CREATE_COMICINFO_XML=true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  tranga-website:
+    # Pull the website image built from the current branch
+    image: glax/tranga-website:latest
+    container_name: tranga-website
+    ports:
+      - "9666:80"
+    depends_on: 
+      - tranga-api
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  tranga-pg:
+    image: postgres:17
+    container_name: tranga-pg
+    ports:
+      - "5432:5433"
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      # - PGPORT=5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-U", "postgres"]
+      interval: 30s
+      timeout: 60s
+      retries: 5
+      start_period: 80s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
