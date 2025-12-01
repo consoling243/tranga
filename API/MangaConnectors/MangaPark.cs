@@ -38,7 +38,7 @@ public class MangaPark : MangaConnector
             Uri searchUri = new(baseUri, $"search?word={HttpUtility.UrlEncode(mangaSearchName)}&lang={Tranga.Settings.DownloadLanguage}&page={page}");
             if (downloadClient.MakeRequest(searchUri.ToString(), RequestType.Default).Result is { StatusCode: >= HttpStatusCode.OK and < HttpStatusCode.Ambiguous } result)
             {
-                HtmlDocument document = result.CreateDocument();
+                HtmlDocument document = result.CreateDocumentPark();
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract HAP sucks with nullable types
                 if (document.DocumentNode.SelectSingleNode("//button[contains(text(),\"No Data\")]") is not null) // No results found
                     break;
@@ -79,7 +79,7 @@ public class MangaPark : MangaConnector
         if (downloadClient.MakeRequest(cleanedUrl.Value, RequestType.Default).Result is
             { StatusCode: >= HttpStatusCode.OK and < HttpStatusCode.Ambiguous } result)
         {
-            HtmlDocument document= result.CreateDocument();
+            HtmlDocument document= result.CreateDocumentPark();
 
             if (document.GetNodeWith("q1_1")?.GetAttributeValue("title", string.Empty) is not { Length: > 0 } name)
             {
@@ -167,7 +167,7 @@ public class MangaPark : MangaConnector
         if (downloadClient.MakeRequest(requestUri.ToString(), RequestType.Default).Result is
             { StatusCode: >= HttpStatusCode.OK and < HttpStatusCode.Ambiguous } result)
         {
-            HtmlDocument document= result.CreateDocument();
+            HtmlDocument document= result.CreateDocumentPark();
 
             if (document.GetNodesWith("8t_8") is not { } chapterNodes)
             {
@@ -247,7 +247,7 @@ public class MangaPark : MangaConnector
         if (downloadClient.MakeRequest(requestUri.ToString(), RequestType.Default).Result is
             { StatusCode: >= HttpStatusCode.OK and < HttpStatusCode.Ambiguous } result)
         {
-            HtmlDocument document = result.CreateDocument();
+            HtmlDocument document = result.CreateDocumentPark();
 
             if (document.DocumentNode.SelectSingleNode("//script[@type='qwik/json']")?.InnerText is not { } imageJson)
             {
@@ -264,7 +264,7 @@ public class MangaPark : MangaConnector
 
 internal static class MangaParkHelper
 {
-    internal static HtmlDocument CreateDocument(this HttpResponseMessage result)
+    internal static HtmlDocument CreateDocumentPark(this HttpResponseMessage result)
     {
         HtmlDocument document = new();
         StreamReader sr = new (result.Content.ReadAsStream());
