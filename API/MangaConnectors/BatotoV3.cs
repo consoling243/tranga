@@ -47,7 +47,7 @@ public class Bato : MangaConnector
             if (doc.DocumentNode.SelectSingleNode("//button[contains(text(),\"No Data\")]") is not null)
                 break;
 
-            var resultNodes = doc.GetNodesWith("q4_9");
+            var resultNodes = doc.GetNodesWith2("q4_9");
             if (resultNodes is not { Count: > 0 })
                 break;
 
@@ -104,18 +104,18 @@ public class Bato : MangaConnector
         {
             var doc = response.CreateDocument();
 
-            var nameNode = doc.GetNodeWith("q1_1");
+            var nameNode = doc.GetNodeWith2("q1_1");
             if (nameNode?.GetAttributeValue("title", string.Empty) is not { Length: > 0 } rawName)
                 return null;
             var name = HttpUtility.HtmlDecode(rawName);
 
-            var desc = HttpUtility.HtmlDecode(doc.GetNodeWith("0a_9")?.InnerText ?? string.Empty);
+            var desc = HttpUtility.HtmlDecode(doc.GetNodeWith2("0a_9")?.InnerText ?? string.Empty);
 
             if (nameNode.GetAttributeValue("src", string.Empty) is not { Length: > 0 } coverRel)
                 return null;
             var coverUrl = $"{baseUrl}{coverRel}";
 
-            var statusStr = doc.GetNodeWith("Yn_5")?.InnerText.ToLowerInvariant();
+            var statusStr = doc.GetNodeWith2("Yn_5")?.InnerText.ToLowerInvariant();
             MangaReleaseStatus releaseStatus = statusStr switch
             {
                 "pending"   => MangaReleaseStatus.Unreleased,
@@ -126,12 +126,12 @@ public class Bato : MangaConnector
                 _           => MangaReleaseStatus.Unreleased
             };
 
-            var authors = doc.GetNodeWith("tz_4")?
+            var authors = doc.GetNodeWith2("tz_4")?
                 .ChildNodes.Where(n => n.Name == "a")
                 .Select(n => new Author(HttpUtility.HtmlDecode(n.InnerText)))
                 .ToList() ?? new List<Author>();
 
-            var mangaTags = doc.GetNodesWith("kd_0")?
+            var mangaTags = doc.GetNodesWith2("kd_0")?
                 .SelectMany(n =>
                 {
                     var txt = HttpUtility.HtmlDecode(n.InnerText);
@@ -141,7 +141,7 @@ public class Bato : MangaConnector
                 .Select(t => new MangaTag(t))
                 .ToList() ?? new List<MangaTag>();
 
-            var altTitles = doc.GetNodeWith("tz_2")?
+            var altTitles = doc.GetNodeWith2("tz_2")?
                 .ChildNodes.Where(n => n.InnerText.Trim().Length > 1)
                 ?.SelectMany(n =>
                 {
@@ -187,7 +187,7 @@ public class Bato : MangaConnector
         {
             var doc = response.CreateDocument();
 
-            var chapterNodes = doc.GetNodesWith("8t_8");
+            var chapterNodes = doc.GetNodesWith2("8t_8");
             if (chapterNodes is null) return null;
 
             var ret = new List<(Chapter, MangaConnectorId<Chapter>)>();
@@ -299,13 +299,13 @@ internal static class BatoHelper
         return doc;
     }
 
-    internal static HtmlNode? GetNodeWith(this HtmlDocument document, string search) =>
+    internal static HtmlNode? GetNodeWith2(this HtmlDocument document, string search) =>
         document.DocumentNode.SelectSingleNode("/html").GetNodeWith(search);
 
     internal static HtmlNode? GetNodeWith(this HtmlNode node, string search) =>
         node.SelectNodes($"{node.XPath}//*[@qkey='{search}']")?.FirstOrDefault();
 
-    internal static HtmlNodeCollection? GetNodesWith(this HtmlDocument document, string search) =>
+    internal static HtmlNodeCollection? GetNodesWith2(this HtmlDocument document, string search) =>
         document.DocumentNode.SelectSingleNode("/html ").GetNodesWith(search);
 
     internal static HtmlNodeCollection? GetNodesWith(this HtmlNode node, string search) =>
