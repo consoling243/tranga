@@ -42,9 +42,9 @@ public class Batoto : MangaConnector
             if (downloadClient.MakeRequest(searchUri.ToString(), RequestType.Default).Result
                     is not { StatusCode: >= HttpStatusCode.OK and < HttpStatusCode.Ambiguous } response)
                 return null;
-            //for debugging, remove when done!
-            var doc = response.BatoCreatFile.WriteAllText("response.html", response.Content.ReadAsStringAsync().Result);
-            eDocument();
+            //for debuging, remove when done
+            File.WriteAllText("response.html", response.Content.ReadAsStringAsync().Result);
+            var doc = response.BatoCreateDocument();
 
             if (doc.DocumentNode.SelectSingleNode("//button[contains(text(),\"No Data\")]") is not null)
                 break;
