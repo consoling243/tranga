@@ -8,9 +8,9 @@ using static System.Text.RegularExpressions.Regex;
 
 namespace API.MangaConnectors;
 
-public class Bato : MangaConnector
+public class Batoto : MangaConnector
 {
-    public Bato() : base(nameof(Bato),
+    public Batoto() : base(nameof(Batoto),
         ["en"],
         ["bato.to"],
         "https://bato.to/public-assets/img/bato-favicon.ico?v1=")
@@ -30,7 +30,7 @@ public class Bato : MangaConnector
 
     private (Manga, MangaConnectorId<Manga>)[]? SearchMangaWithDomain(string name, string domain)
     {
-        Log.DebugFormat("Using Bato search on domain {0}", domain);
+        Log.DebugFormat("Using Batoto search on domain {0}", domain);
         var baseUri = new Uri($"https://{domain}/");
 
         var ret = new List<(Manga, MangaConnectorId<Manga>)>();
@@ -178,7 +178,7 @@ public class Bato : MangaConnector
 
     private (Chapter, MangaConnectorId<Chapter>)[]? GetChaptersFromDomain(MangaConnectorId<Manga> mangaId, string domain)
     {
-        Log.DebugFormat("Getting chapters from Bato domain {0}", domain);
+        Log.DebugFormat("Getting chapters from Batoto domain {0}", domain);
         var baseUri = new Uri($"https://{domain}/");
         var requestUri = new Uri(baseUri, $"title/{mangaId.IdOnConnectorSite}");
 
