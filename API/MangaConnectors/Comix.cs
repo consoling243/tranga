@@ -15,9 +15,9 @@ namespace API.MangaConnectors;
 /// <summary>
 /// Connector for https://comix.to/
 /// </summary>
-public class ComixConnector : MangaConnector
+public class Comix : MangaConnector
 {
-    public ComixConnector()
+    public Comix()
         : base(
             "Comix",                                 // connector name
             new[] { "en" },                          // supported languages (adjust if you add more)
