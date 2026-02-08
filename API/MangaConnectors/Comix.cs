@@ -258,6 +258,7 @@ public class Comix : MangaConnector
 
     #region CHAPTER LIST -------------------------------------------------------
 
+    private const int Limit = 100;
     public override (Chapter, MangaConnectorId<Chapter>)[] GetChapters(
         MangaConnectorId<Manga> manga,
         string? language = null)
@@ -267,90 +268,115 @@ public class Comix : MangaConnector
         // The stored ID is the combined "hash‑slug" (e.g. 5zrxl-kanojo-no-carrera).
         string slug = manga.IdOnConnectorSite;
 
-        string chaptersUrl = $"https://comix.to/title/{slug}/full-chapter-list";
+        // string chaptersUrl = $"https://comix.to/api/v2/manga/{hash}/chapters?limit={Limit}page=1&order[number]=asc";
 
-        HttpResponseMessage response = downloadClient
+        // HttpResponseMessage response = downloadClient
+        //     .MakeRequest(chaptersUrl, RequestType.Default)
+        //     .GetAwaiter()
+        //     .GetResult();
+
+        // if (!response.IsSuccessStatusCode)
+        // {
+        //     Log.Error($"Failed to load chapter list – status {(int)response.StatusCode}");
+        //     return [];
+        // }
+
+        int page = 1;
+        int last_page = 1; 
+        // response.result.pagination.last_page;
+        
+        while(page <= last_page)
+        {
+            string chaptersUrl = $"https://comix.to/api/v2/manga/{hash}/chapters?limit={Limit}page={page}&order[number]=asc";
+            
+            HttpResponseMessage response = downloadClient
             .MakeRequest(chaptersUrl, RequestType.Default)
             .GetAwaiter()
             .GetResult();
 
-        if (!response.IsSuccessStatusCode)
-        {
-            Log.Error($"Failed to load chapter list – status {(int)response.StatusCode}");
-            return [];
-        }
-
-        string html = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-        var doc    = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        var chapterNodes = doc.DocumentNode.SelectNodes("//a[contains(@href, '/title/') and contains(@href, '-chapter-')]");
-        if (chapterNodes == null || chapterNodes.Count == 0)
-            return [];
-
-        var chapters = new List<(Chapter, MangaConnectorId<Chapter>)>();
-
-        foreach (var node in chapterNodes)
-        {
-            string href = node.GetAttributeValue("href", "").Trim();
-            if (string.IsNullOrEmpty(href))
-                continue;
-
-            string fullUrl = href.StartsWith("http")
-                ? href
-                : $"https://comix.to{(href.StartsWith("/") ? "" : "/")}{href}";
-
-            // Visible text may contain volume info, chapter number etc.
-            string nodeText = node.InnerText.Trim();
-
-            // ---- VOLUME (optional) -----------------------------------------
-            int? volumeNumber = null;
-            var volMatch = Regex.Match(nodeText,
-                @"(?:vol\.?|volume|season)\s*([0-9]+)",
-                RegexOptions.IgnoreCase);
-            if (volMatch.Success && int.TryParse(volMatch.Groups[1].Value, out int v))
-                volumeNumber = v;
-
-            // ---- CHAPTER NUMBER ---------------------------------------------
-            string chapterNumber;
-            var chMatch = Regex.Match(nodeText,
-                @"(?:ch\.?|chapter)\s*([0-9]+(?:\.[0-9]+)?)",
-                RegexOptions.IgnoreCase);
-            if (chMatch.Success)
-                chapterNumber = chMatch.Groups[1].Value;
-            else
+            if (!response.IsSuccessStatusCode)
             {
-                // Fallback – last numeric token in the string.
-                var numbers = Regex.Matches(nodeText, @"[0-9]+(?:\.[0-9]+)?")
-                                   .Cast<Match>()
-                                   .Select(m => m.Value)
-                                   .ToArray();
-
-                if (numbers.Length == 0)
-                {
-                    Log.Warn($"Unable to determine chapter number from '{nodeText}'. Skipping.");
-                    continue;
-                }
-
-                chapterNumber = numbers.Last();
+                Log.Error($"Failed to load chapter list – status {(int)response.StatusCode}");
+                return [];
             }
 
-            // ---- BUILD CHAPTER OBJECT ---------------------------------------
-            var chapter = new Chapter(manga.Obj, chapterNumber, volumeNumber, null);
+            page += 1;
+            if(last_page != response.result.pagination.last_page) {
+                last_page = response.result.pagination.last_page;
+            }
 
-            // The ID we store is the numeric part before "-chapter-".
-            // Example: 2407319-chapter-1 => "2407319"
-            string idOnSite = new Uri(fullUrl).Segments.Last()
-                                .Split(new[] { '-' }, StringSplitOptions.RemoveEmptyEntries)[0];
+            string html = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            var doc    = new HtmlDocument();
+            doc.LoadHtml(html);
 
-            var mcId = new MangaConnectorId<Chapter>(chapter, this, idOnSite, fullUrl);
-            chapter.MangaConnectorIds.Add(mcId);
+            var chapterNodes = doc.DocumentNode.SelectNodes("//a[contains(@href, '/title/') and contains(@href, '-chapter-')]");
+            if (chapterNodes == null || chapterNodes.Count == 0)
+                return [];
 
-            chapters.Add((chapter, mcId));
+            var chapters = new List<(Chapter, MangaConnectorId<Chapter>)>();
+
+            foreach (var node in chapterNodes)
+            {
+                string href = node.GetAttributeValue("href", "").Trim();
+                if (string.IsNullOrEmpty(href))
+                    continue;
+
+                string fullUrl = href.StartsWith("http")
+                    ? href
+                    : $"https://comix.to{(href.StartsWith("/") ? "" : "/")}{href}";
+
+                // Visible text may contain volume info, chapter number etc.
+                string nodeText = node.InnerText.Trim();
+
+                // ---- VOLUME (optional) -----------------------------------------
+                int? volumeNumber = null;
+                var volMatch = Regex.Match(nodeText,
+                    @"(?:vol\.?|volume|season)\s*([0-9]+)",
+                    RegexOptions.IgnoreCase);
+                if (volMatch.Success && int.TryParse(volMatch.Groups[1].Value, out int v))
+                    volumeNumber = v;
+
+                // ---- CHAPTER NUMBER ---------------------------------------------
+                string chapterNumber;
+                var chMatch = Regex.Match(nodeText,
+                    @"(?:ch\.?|chapter)\s*([0-9]+(?:\.[0-9]+)?)",
+                    RegexOptions.IgnoreCase);
+                if (chMatch.Success)
+                    chapterNumber = chMatch.Groups[1].Value;
+                else
+                {
+                    // Fallback – last numeric token in the string.
+                    var numbers = Regex.Matches(nodeText, @"[0-9]+(?:\.[0-9]+)?")
+                                    .Cast<Match>()
+                                    .Select(m => m.Value)
+                                    .ToArray();
+
+                    if (numbers.Length == 0)
+                    {
+                        Log.Warn($"Unable to determine chapter number from '{nodeText}'. Skipping.");
+                        continue;
+                    }
+
+                    chapterNumber = numbers.Last();
+                }
+
+                // ---- BUILD CHAPTER OBJECT ---------------------------------------
+                var chapter = new Chapter(manga.Obj, chapterNumber, volumeNumber, null);
+
+                // The ID we store is the numeric part before "-chapter-".
+                // Example: 2407319-chapter-1 => "2407319"
+                string idOnSite = new Uri(fullUrl).Segments.Last()
+                                    .Split(new[] { '-' }, StringSplitOptions.RemoveEmptyEntries)[0];
+
+                var mcId = new MangaConnectorId<Chapter>(chapter, this, idOnSite, fullUrl);
+                chapter.MangaConnectorIds.Add(mcId);
+
+                chapters.Add((chapter, mcId));
+            }
+            Log.InfoFormat("Found {0} chapters for '{1}' page '{2}'", chapters.Count, manga.Obj.Name, page);
         }
-
-        Log.InfoFormat("Found {0} chapters for '{1}'", chapters.Count, manga.Obj.Name);
         return chapters.OrderBy(c => c.Item1, new Chapter.ChapterComparer()).ToArray();
+
     }
 
     #endregion
