@@ -44,7 +44,7 @@ public class Comix : MangaConnector
             .ToLowerInvariant();
 
         // 2️⃣ Build the search URL.  comix.to uses a simple GET param called "keyword".
-        string searchUrl = $"https://comix.to/search?keyword={HttpUtility.UrlEncode(sanitizedTitle)}";
+        string searchUrl = $"https://comix.to/browser?keyword={HttpUtility.UrlEncode(sanitizedTitle)}&order=relevance%3Adesc";
 
         HttpResponseMessage response = downloadClient
             .MakeRequest(searchUrl, RequestType.Default)
