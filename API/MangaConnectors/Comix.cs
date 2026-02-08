@@ -283,6 +283,8 @@ public class Comix : MangaConnector
 
         int page = 1;
         int last_page = 1; 
+        var chapters = new List<(Chapter, MangaConnectorId<Chapter>)>();
+        
         // response.result.pagination.last_page;
         
         while(page <= last_page)
@@ -312,8 +314,6 @@ public class Comix : MangaConnector
             var chapterNodes = doc.DocumentNode.SelectNodes("//a[contains(@href, '/title/') and contains(@href, '-chapter-')]");
             if (chapterNodes == null || chapterNodes.Count == 0)
                 return [];
-
-            var chapters = new List<(Chapter, MangaConnectorId<Chapter>)>();
 
             foreach (var node in chapterNodes)
             {
