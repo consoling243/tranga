@@ -428,12 +428,12 @@ public class Comix : MangaConnector
 
                 if (!string.IsNullOrEmpty(src) && !src.StartsWith("http"))
                     src = $"{src}";
-                    Log.Info($"Retrieving urls: {src}");
+                    Log.Info($"Retrieving src: {src}");
                 return src;
             })
             .Where(u => !string.IsNullOrEmpty(u))
             .ToArray();
-
+        Log.Info($"Retrieving urls: {urls}");
 
         Log.InfoFormat("Found {0} image URLs for chapter {1}", urls.Length, chapterId.Obj);
         return urls;
