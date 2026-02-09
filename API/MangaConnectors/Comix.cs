@@ -395,7 +395,6 @@ public class Comix : MangaConnector
         MangaConnectorId<Chapter> chapterId,
         string? referrer)
     {
-        Log.Info($"Logging website url: {chapterId.WebsiteUrl}");
         await using var chromium = new ChromiumDownloadClient();
 
         HttpResponseMessage response = await chromium.MakeRequest(
@@ -414,7 +413,9 @@ public class Comix : MangaConnector
         doc.LoadHtml(html);
 
         // Images look like: <img alt="Page 1" src="/media/manga/xxxxx.jpg">
-        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
+        // var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
+        var imgNodes = doc.DocumentNode.SelectNodes("//images[starts-with(@url, '')]");
+        
         Log.Info($"Image Nodes: {imgNodes.ToString}");
         if (imgNodes == null || imgNodes.Count == 0)
         {
