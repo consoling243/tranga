@@ -307,7 +307,7 @@ public class Comix : MangaConnector
             // -----------------------------------------------------------------
             foreach (JsonElement ch in items.EnumerateArray())
             {
-                Log.Info($"Retrieving chapters: {ch}")
+                Log.Info($"Retrieving chapters: {ch}");
                 // Required fields – if any are missing we skip that entry.
                 if (!ch.TryGetProperty("chapter_id", out JsonElement idEl) ||
                     !ch.TryGetProperty("number",     out JsonElement numEl))
@@ -341,10 +341,10 @@ public class Comix : MangaConnector
                                                         canonicalUrl);
                 chapter.MangaConnectorIds.Add(mcId);
                 allChapters.Add((chapter, mcId));
-                Log.Info($"Retrieving chId: {chapterIdOnSite}")
-                Log.Info($"Retrieving numberStr: {numberStr}")
-                Log.Info($"Retrieving mcId: {mcId}")
-                Log.Info($"Retrieving canonicalUrl: {canonicalUrl}")
+                Log.Info($"Retrieving chId: {chapterIdOnSite}");
+                Log.Info($"Retrieving numberStr: {numberStr}");
+                Log.Info($"Retrieving mcId: {mcId}");
+                Log.Info($"Retrieving canonicalUrl: {canonicalUrl}");
             }
 
             // -----------------------------------------------------------------
