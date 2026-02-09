@@ -427,7 +427,7 @@ public class Comix : MangaConnector
                              ?? img.GetAttributeValue("data-src", "");
 
                 if (!string.IsNullOrEmpty(src) && !src.StartsWith("http"))
-                    src = $"https://comix.to{src}";
+                    src = $"{src}";
                     Log.Info($"Retrieving urls: {src}");
                 return src;
             })
