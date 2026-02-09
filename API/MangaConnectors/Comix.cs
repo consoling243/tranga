@@ -332,7 +332,7 @@ public class Comix : MangaConnector
                 Log.Info($"Retrieving volumeNumber: {volumeNumber}");
                 Log.Info($"Retrieving chTitle: {chTitle}");
 
-                Log.Info($"Retrieving chapterObj: {manga.Obj}, numberStr: {numberStr}, volumeNumber: {volumeNumber}, chTitle: {chTitle}}");
+                Log.Info($"Retrieving chapterObj: {manga.Obj}, numberStr: {numberStr}, volumeNumber: {volumeNumber}, chTitle: {chTitle}");
                 // Build Chapter object.
                 var chapter = new Chapter(manga.Obj, numberStr, volumeNumber, chTitle);
                 Log.Info($"Retrieving chapter: {chapter}");
