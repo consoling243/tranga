@@ -369,78 +369,108 @@ public class Comix : MangaConnector
 
     #region CHAPTER IMAGES -----------------------------------------------------
 
-    internal override string[] GetChapterImageUrls(MangaConnectorId<Chapter> chapterId)
-    {
-        Log.InfoFormat("Fetching image URLs for chapter: {0}", chapterId.Obj);
-
-        if (chapterId.WebsiteUrl == null)
+        internal override string[] GetChapterImageUrls(MangaConnectorId<Chapter> chapterId)
         {
-            Log.Error("Chapter URL is null – cannot continue.");
-            return [];
-        }
+            Log.InfoFormat("Fetching image URLs for chapter: {0}", chapterId.Obj);
 
-        // comix.to checks the referrer header.  We pass the manga page as referrer.
-        string? referrer = null;
-        if (chapterId.Obj.ParentManga.MangaConnectorIds?.Any() == true)
-        {
-            referrer = chapterId.Obj.ParentManga.MangaConnectorIds
-                .FirstOrDefault(id => id.MangaConnectorName == this.Name)?
-                .WebsiteUrl;
-        }
-
-        return GetChapterImageUrlsAsync(chapterId, referrer).GetAwaiter().GetResult();
-    }
-
-    private async Task<string[]> GetChapterImageUrlsAsync(
-        MangaConnectorId<Chapter> chapterId,
-        string? referrer)
-    {
-        await using var chromium = new ChromiumDownloadClient();
-
-        HttpResponseMessage response = await chromium.MakeRequest(
-            chapterId.WebsiteUrl!,
-            RequestType.Default,
-            referrer);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            Log.Error($"Failed to load chapter page – status {(int)response.StatusCode}");
-            return [];
-        }
-
-        string html = await response.Content.ReadAsStringAsync();
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        // Images look like: <img alt="Page 1" src="/media/manga/xxxxx.jpg">
-        // var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-        var docBody = doc.DocumentNode.SelectSingleNode("//body");
-        Log.Info($"Html Body for chapter: {chapterId.WebsiteUrl} ++++<>++++ {docBody.OuterHtml}");
-        Log.Info($"Image Nodes: {imgNodes.ToString}");
-        if (imgNodes == null || imgNodes.Count == 0)
-        {
-            Log.Warn("No page images found on chapter page.");
-            return [];
-        }
-
-        var imageUrls = imgNodes
-            .Select(img =>
+            if (chapterId.WebsiteUrl == null)
             {
-                string src = img.GetAttributeValue("src", "")
-                             ?? img.GetAttributeValue("data-src", "");
+                Log.Error("Chapter URL is null – cannot continue.");
+                return [];
+            }
 
-                if (!string.IsNullOrEmpty(src))
-                    src = $"{src}";
-                    Log.Info($"Retrieving src: {src}");
-                return src;
-            })
-            .Where(u => !string.IsNullOrEmpty(u))
-            .ToArray();
+            // -----------------------------------------------------------------
+            // The referrer header that comix.to expects is still the manga page.
+            // We keep the same logic as before.
+            // -----------------------------------------------------------------
+            string? referrer = null;
+            if (chapterId.Obj.ParentManga.MangaConnectorIds?.Any() == true)
+            {
+                referrer = chapterId.Obj.ParentManga.MangaConnectorIds
+                    .FirstOrDefault(id => id.MangaConnectorName == this.Name)?
+                    .WebsiteUrl;
+            }
 
-        Log.InfoFormat("Found {0} image URLs for chapter {1}", imageUrls.Length, chapterId.Obj);
-        return imageUrls;
-    }
+            // The new JSON‑API call is performed by the HttpDownloadClient (no Chromium needed).
+            return GetChapterImageUrlsAsync(chapterId, referrer).GetAwaiter().GetResult();
+        }
 
-    #endregion
-}
+        private async Task<string[]> GetChapterImageUrlsAsync(
+            MangaConnectorId<Chapter> chapterId,
+            string? referrer)
+        {
+            // -------------------------------------------------------------
+            // 1️⃣ Build the URL that returns the JSON payload.
+            // -------------------------------------------------------------
+            //   slugPart        = the full “hash‑slug” stored on the parent manga
+            //   chapterIdOnSite = numeric id we stored when we built the Chapter object
+            //   numberStr       = human readable chapter number (e.g. “69”, “1.5”)
+            // -------------------------------------------------------------
+            string slugPart = chapterId.Obj.ParentManga.MangaConnectorIds?
+                .FirstOrDefault(id => id.MangaConnectorName == this.Name)?
+                .IdOnConnectorSite
+                ?? throw new InvalidOperationException("Parent manga ID not found");
+
+            string chapterNumericId = chapterId.IdOnConnectorSite;               // e.g. 7853102
+            string numberStr       = chapterId.Obj.Number;                       // e.g. "69"
+
+            string jsonUrl = $"https://comix.to/title/{slugPart}/{chapterNumericId}-chapter-{numberStr}";
+
+            // -------------------------------------------------------------
+            // 2️⃣ Issue a plain GET request (the endpoint returns JSON, not HTML).
+            // -------------------------------------------------------------
+            HttpResponseMessage response = await downloadClient.MakeRequest(
+                jsonUrl,
+                RequestType.Default,
+                referrer);               // the referrer header is still required
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Log.Error($"Failed to load chapter JSON – status {(int)response.StatusCode}");
+                return [];
+            }
+
+            string payload = await response.Content.ReadAsStringAsync();
+
+            // -------------------------------------------------------------
+            // 3️⃣ Parse the “images” array.
+            //     The API always returns an object that contains a property called
+            //     "images" (array of strings).  If the format ever changes we only
+            //     have to adjust this block.
+            // -------------------------------------------------------------
+            try
+            {
+                using JsonDocument doc = JsonDocument.Parse(payload);
+                JsonElement root = doc.RootElement;
+
+                // Some responses are wrapped in a top‑level “result” object,
+                // others expose the array directly – handle both.
+                JsonElement imagesElem;
+                if (root.TryGetProperty("images", out JsonElement direct))
+                    imagesElem = direct;
+                else if (root.TryGetProperty("result", out JsonElement result) &&
+                        result.TryGetProperty("images", out JsonElement nested))
+                    imagesElem = nested;
+                else
+                {
+                    Log.Warn("JSON payload does not contain an \"images\" array");
+                    return [];
+                }
+
+                var urls = new List<string>();
+                foreach (JsonElement img in imagesElem.EnumerateArray())
+                {
+                    if (img.ValueKind == JsonValueKind.String)
+                        urls.Add(img.GetString()!);
+                }
+
+                Log.InfoFormat("Found {0} image URLs for chapter {1}", urls.Count, chapterId.Obj);
+                return urls.ToArray();
+            }
+            catch (JsonException ex)
+            {
+                Log.Error($"Failed to parse JSON from chapter page: {ex.Message}");
+                return [];
+            }
+        }
+#endregion
