@@ -400,7 +400,7 @@ public class Comix : MangaConnector
             string? referrer)
         {
             // -------------------------------------------------------------
-            // 1️⃣ Build the URL that returns the JSON payload.
+            // Build the URL that returns the JSON payload.
             // -------------------------------------------------------------
             //   slugPart        = the full “hash‑slug” stored on the parent manga
             //   chapterIdOnSite = numeric id we stored when we built the Chapter object
@@ -417,7 +417,7 @@ public class Comix : MangaConnector
             string jsonUrl = $"https://comix.to/title/{slugPart}/{chapterNumericId}-chapter-{numberStr}";
 
             // -------------------------------------------------------------
-            // 2️⃣ Issue a plain GET request (the endpoint returns JSON, not HTML).
+            // Issue a plain GET request (the endpoint returns JSON, not HTML).
             // -------------------------------------------------------------
             HttpResponseMessage response = await downloadClient.MakeRequest(
                 jsonUrl,
@@ -433,7 +433,7 @@ public class Comix : MangaConnector
             string payload = await response.Content.ReadAsStringAsync();
 
             // -------------------------------------------------------------
-            // 3️⃣ Parse the “images” array.
+            // Parse the “images” array.
             //     The API always returns an object that contains a property called
             //     "images" (array of strings).  If the format ever changes we only
             //     have to adjust this block.
@@ -457,15 +457,15 @@ public class Comix : MangaConnector
                     return [];
                 }
 
-                var urls = new List<string>();
+                var imageUrls = new List<string>();
                 foreach (JsonElement img in imagesElem.EnumerateArray())
                 {
                     if (img.ValueKind == JsonValueKind.String)
-                        urls.Add(img.GetString()!);
+                        imageUrls.Add(img.GetString()!);
                 }
 
-                Log.InfoFormat("Found {0} image URLs for chapter {1}", urls.Count, chapterId.Obj);
-                return urls.ToArray();
+                Log.InfoFormat("Found {0} image URLs for chapter {1}", imageUrls.Count, chapterId.Obj);
+                return imageUrls.ToArray();
             }
             catch (JsonException ex)
             {
@@ -473,4 +473,5 @@ public class Comix : MangaConnector
                 return [];
             }
         }
-#endregion
+
+    #endregion
