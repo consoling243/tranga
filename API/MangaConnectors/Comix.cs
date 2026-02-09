@@ -278,7 +278,7 @@ public class Comix : MangaConnector
         //     Log.Error($"Failed to load chapter list – status {(int)response.StatusCode}");
         //     return [];
         // }
-        string hash = "";
+        string hash = "test";
         int page = 1;
         int last_page = 1; 
         var chapters = new List<(Chapter, MangaConnectorId<Chapter>)>();
@@ -288,7 +288,7 @@ public class Comix : MangaConnector
         while(page <= last_page)
         {
             string chaptersUrl = $"https://comix.to/api/v2/manga/{hash}/chapters?limit={Limit}page={page}&order[number]=asc";
-            
+            default
             HttpResponseMessage response = downloadClient
                 .MakeRequest(chaptersUrl, RequestType.Default)
                 .GetAwaiter()
