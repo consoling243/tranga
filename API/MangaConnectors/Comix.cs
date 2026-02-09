@@ -266,9 +266,6 @@ public class Comix : MangaConnector
     {
         Log.InfoFormat("Fetching chapter list for slug: {0}", manga.IdOnConnectorSite);
 
-        // The stored ID is the combined "hash‑slug" (e.g. 5zrxl-kanojo-no-carrera).
-        string slug = manga.IdOnConnectorSite;
-
         // string chaptersUrl = $"https://comix.to/api/v2/manga/{hash}/chapters?limit={Limit}page=1&order[number]=asc";
 
         // HttpResponseMessage response = downloadClient
@@ -281,7 +278,7 @@ public class Comix : MangaConnector
         //     Log.Error($"Failed to load chapter list – status {(int)response.StatusCode}");
         //     return [];
         // }
-        string hash = slug;
+        string hash = "";
         int page = 1;
         int last_page = 1; 
         var chapters = new List<(Chapter, MangaConnectorId<Chapter>)>();
