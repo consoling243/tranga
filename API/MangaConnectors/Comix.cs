@@ -420,7 +420,7 @@ public class Comix : MangaConnector
             return [];
         }
 
-        var urls = imgNodes
+        var imageUrls = imgNodes
             .Select(img =>
             {
                 string src = img.GetAttributeValue("src", "")
@@ -433,10 +433,10 @@ public class Comix : MangaConnector
             })
             .Where(u => !string.IsNullOrEmpty(u))
             .ToArray();
-        Log.Info($"Retrieving urls: {urls}");
+        Log.Info($"Retrieving urls: {imageUrls}");
 
-        Log.InfoFormat("Found {0} image URLs for chapter {1}", urls.Length, chapterId.Obj);
-        return urls;
+        Log.InfoFormat("Found {0} image URLs for chapter {1}", imageUrls.Length, chapterId.Obj);
+        return imageUrls;
     }
 
     #endregion
