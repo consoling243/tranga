@@ -79,7 +79,7 @@ public class Comix : MangaConnector
 
         var seenIds = new HashSet<string>();
         var mangas  = new List<(Manga, MangaConnectorId<Manga>)>();
-        string hash = "";
+        string hash = "default";
 
         foreach (JsonElement item in items.EnumerateArray())
         {
@@ -293,9 +293,9 @@ public class Comix : MangaConnector
             string chaptersUrl = $"https://comix.to/api/v2/manga/{hash}/chapters?limit={Limit}page={page}&order[number]=asc";
             
             HttpResponseMessage response = downloadClient
-            .MakeRequest(chaptersUrl, RequestType.Default)
-            .GetAwaiter()
-            .GetResult();
+                .MakeRequest(chaptersUrl, RequestType.Default)
+                .GetAwaiter()
+                .GetResult();
 
             if (!response.IsSuccessStatusCode)
             {
@@ -304,8 +304,8 @@ public class Comix : MangaConnector
             }
 
             page += 1;
-            if(last_page != response.result.pagination.last_page) {
-                last_page = response.result.pagination.last_page;
+            if(last_page != 1) {
+                last_page = 1;
             }
 
             string html = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
