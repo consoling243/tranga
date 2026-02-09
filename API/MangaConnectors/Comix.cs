@@ -414,8 +414,9 @@ public class Comix : MangaConnector
 
         // Images look like: <img alt="Page 1" src="/media/manga/xxxxx.jpg">
         // var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-        var imgNodes = doc.DocumentNode.SelectNodes("//images[starts-with(@url, '')]");
-        
+        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
+        var docBody = doc.DocumentNode.SelectSingleNode("//body");
+        Log.Info($"Html Body for chapter: {chapterId.WebsiteUrl} ++++<>++++ {docBody.OuterHtml}");
         Log.Info($"Image Nodes: {imgNodes.ToString}");
         if (imgNodes == null || imgNodes.Count == 0)
         {
