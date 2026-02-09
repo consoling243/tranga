@@ -289,6 +289,10 @@ public class Comix : MangaConnector
             {
                 Log.Info($"Retrieving chapters {response}");
             }
+            if (response.IsSuccessStatusCode)
+            {
+                Log.Info($"Retrieving chapters {response.Content}");
+            }
 
             if (!response.IsSuccessStatusCode)
             {
@@ -301,6 +305,11 @@ public class Comix : MangaConnector
             JsonElement root   = doc.RootElement;
             JsonElement result = root.GetProperty("result");
             JsonElement items  = result.GetProperty("items");
+
+            if (response.IsSuccessStatusCode)
+            {
+                Log.Info($"Retrieving chapters {doc}");
+            }
 
             // -----------------------------------------------------------------
             // 2️⃣ Parse every chapter returned on this page.
