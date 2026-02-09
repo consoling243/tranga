@@ -285,6 +285,11 @@ public class Comix : MangaConnector
                 .GetAwaiter()
                 .GetResult();
 
+            if (response.IsSuccessStatusCode)
+            {
+                Log.Info($"Retrieving chapters {response}");
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 Log.Error($"Failed to retrieve chapter page {page} – status {(int)response.StatusCode}");
