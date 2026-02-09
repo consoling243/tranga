@@ -288,7 +288,7 @@ public class Comix : MangaConnector
         while(page <= last_page)
         {
             string chaptersUrl = $"https://comix.to/api/v2/manga/{hash}/chapters?limit={Limit}page={page}&order[number]=asc";
-            default
+    
             HttpResponseMessage response = downloadClient
                 .MakeRequest(chaptersUrl, RequestType.Default)
                 .GetAwaiter()
