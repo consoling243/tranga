@@ -79,7 +79,7 @@ public class Comix : MangaConnector
 
         var seenIds = new HashSet<string>();
         var mangas  = new List<(Manga, MangaConnectorId<Manga>)>();
-        //string hash = "default";
+        var hash = "";
 
         foreach (JsonElement item in items.EnumerateArray())
         {
@@ -88,7 +88,7 @@ public class Comix : MangaConnector
                 !item.TryGetProperty("slug",     out JsonElement slugEl))
                 continue;
 
-            string hash = hashEl.GetString() ?? "";
+            hash = hashEl.GetString() ?? "";
             string slug = slugEl.GetString() ?? "";
 
             if (string.IsNullOrWhiteSpace(hash) || string.IsNullOrWhiteSpace(slug))
