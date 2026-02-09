@@ -164,7 +164,7 @@ public class Comix : MangaConnector
         var coverNode = doc.DocumentNode.SelectSingleNode("//img[contains(@class,'cover')]");
         string coverUrl = coverNode?.GetAttributeValue("src", "") ?? "";
         if (!string.IsNullOrEmpty(coverUrl) && !coverUrl.StartsWith("http"))
-            coverUrl = $"https://comix.to{coverUrl}";
+            coverUrl = $"https://static.comix.to{coverUrl}";
 
         // ----- DESCRIPTION ---------------------------------------------------
         var descNode = doc.DocumentNode.SelectSingleNode("//div[contains(@class,'description')]");
