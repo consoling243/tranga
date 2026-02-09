@@ -281,7 +281,7 @@ public class Comix : MangaConnector
         //     Log.Error($"Failed to load chapter list – status {(int)response.StatusCode}");
         //     return [];
         // }
-
+        string hash = slug;
         int page = 1;
         int last_page = 1; 
         var chapters = new List<(Chapter, MangaConnectorId<Chapter>)>();
