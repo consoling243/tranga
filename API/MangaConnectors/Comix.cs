@@ -287,11 +287,7 @@ public class Comix : MangaConnector
 
             if (response.IsSuccessStatusCode)
             {
-                Log.Info($"Retrieving chapters {response}");
-            }
-            if (response.IsSuccessStatusCode)
-            {
-                Log.Info($"Retrieving chapters {response.Content}");
+                Log.Info($"Retrieving response {response}");
             }
 
             if (!response.IsSuccessStatusCode)
@@ -308,7 +304,19 @@ public class Comix : MangaConnector
 
             if (response.IsSuccessStatusCode)
             {
-                Log.Info($"Retrieving chapters {doc}");
+                Log.Info($"Retrieving json {json}");
+            }
+            if (response.IsSuccessStatusCode)
+            {
+                Log.Info($"Retrieving doc {doc}");
+            }
+                        if (response.IsSuccessStatusCode)
+            {
+                Log.Info($"Retrieving result {result}");
+            }
+                        if (response.IsSuccessStatusCode)
+            {
+                Log.Info($"Retrieving items {items}");
             }
 
             // -----------------------------------------------------------------
