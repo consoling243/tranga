@@ -395,7 +395,7 @@ public class Comix : MangaConnector
         MangaConnectorId<Chapter> chapterId,
         string? referrer)
     {
-        Log.Info($"Logging website url: {chapterId.websiteUrl}");
+        Log.Info($"Logging website url: {chapterId.WebsiteUrl}");
         await using var chromium = new ChromiumDownloadClient();
 
         HttpResponseMessage response = await chromium.MakeRequest(
