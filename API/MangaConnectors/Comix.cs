@@ -413,7 +413,7 @@ public class Comix : MangaConnector
         doc.LoadHtml(html);
 
         // Images look like: <img alt="Page 1" src="/media/manga/xxxxx.jpg">
-        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, 'Page')]");
+        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
         if (imgNodes == null || imgNodes.Count == 0)
         {
             Log.Warn("No page images found on chapter page.");
