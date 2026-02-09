@@ -79,7 +79,7 @@ public class Comix : MangaConnector
 
         var seenIds = new HashSet<string>();
         var mangas  = new List<(Manga, MangaConnectorId<Manga>)>();
-        string hash = "default";
+        //string hash = "default";
 
         foreach (JsonElement item in items.EnumerateArray())
         {
