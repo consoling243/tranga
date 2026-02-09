@@ -313,8 +313,10 @@ public class Comix : MangaConnector
                     !ch.TryGetProperty("number",     out JsonElement numEl))
                     continue;
 
-                string chapterIdOnSite = idEl.GetRawText();          // e.g. 7853102
-                string numberStr        = numEl.GetRawText();      // may be int or float in JSON
+                Log.Info($"Retrieving chId: {idEl.GetInt32().ToString()}");
+                Log.Info($"Retrieving numberStr: {numEl.GetInt32().ToString()}");
+                string chapterIdOnSite = idEl.GetInt32().ToString();          // e.g. 7853102
+                string numberStr        = numEl.GetInt32().ToString();      // may be int or float in JSON
 
                 // Volume is optional.
                 int? volumeNumber = null;
@@ -341,8 +343,6 @@ public class Comix : MangaConnector
                                                         canonicalUrl);
                 chapter.MangaConnectorIds.Add(mcId);
                 allChapters.Add((chapter, mcId));
-                Log.Info($"Retrieving chId: {chapterIdOnSite}");
-                Log.Info($"Retrieving numberStr: {numberStr}");
                 Log.Info($"Retrieving mcId: {mcId}");
                 Log.Info($"Retrieving canonicalUrl: {canonicalUrl}");
             }
