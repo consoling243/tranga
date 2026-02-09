@@ -285,11 +285,6 @@ public class Comix : MangaConnector
                 .GetAwaiter()
                 .GetResult();
 
-            if (response.IsSuccessStatusCode)
-            {
-                Log.Info($"Retrieving response {response}");
-            }
-
             if (!response.IsSuccessStatusCode)
             {
                 Log.Error($"Failed to retrieve chapter page {page} – status {(int)response.StatusCode}");
@@ -318,16 +313,16 @@ public class Comix : MangaConnector
 
                 // Volume is optional.
                 int? volumeNumber = null;
-                if (ch.TryGetProperty("volume", out JsonElement volEl) &&
-                    volEl.ValueKind != JsonValueKind.Null &&
-                    int.TryParse(volEl.GetString(), out int v))
-                    volumeNumber = v;
+                // if (ch.TryGetProperty("volume", out JsonElement volEl) &&
+                //     volEl.ValueKind != JsonValueKind.Null &&
+                //     int.TryParse(volEl.GetString(), out int v))
+                //     volumeNumber = v;
 
                 // Optional human‑readable title of the chapter.
                 string? chTitle = null;
-                if (ch.TryGetProperty("name", out JsonElement nameEl) &&
-                    nameEl.ValueKind != JsonValueKind.Null)
-                    chTitle = HtmlEntity.DeEntitize(nameEl.GetString()?.Trim() ?? "");
+                // if (ch.TryGetProperty("name", out JsonElement nameEl) &&
+                //     nameEl.ValueKind != JsonValueKind.Null)
+                //     chTitle = HtmlEntity.DeEntitize(nameEl.GetString()?.Trim() ?? "");
 
                 Log.Info($"Retrieving volumeNumber: {volumeNumber}");
                 Log.Info($"Retrieving chTitle: {chTitle}");
