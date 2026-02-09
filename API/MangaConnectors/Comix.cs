@@ -161,10 +161,29 @@ public class Comix : MangaConnector
         cleanTitle = HtmlEntity.DeEntitize(cleanTitle);
 
         // ----- COVER ---------------------------------------------------------
+    string coverUrl = null;
+
+    var preloadLinkNode = doc.DocumentNode.SelectSingleNode(
+        "//link[@rel='preload' and @as='image' and @href]");
+
+    if (preloadLinkNode != null)
+    {
+        // The attribute already contains a full URL in the current site layout.
+        coverUrl = preloadLinkNode.GetAttributeValue("href", "").Trim();
+
+        // Defensive: some older pages might have a relative URL – make it absolute.
+        if (!string.IsNullOrEmpty(coverUrl) && !coverUrl.StartsWith("http"))
+            coverUrl = $"https://comix.to{coverUrl}";
+    }
+
+    // 2️⃣ Fallback to the old <img class="cover"> selector (kept for safety).
+    if (string.IsNullOrWhiteSpace(coverUrl))
+    {
         var coverNode = doc.DocumentNode.SelectSingleNode("//img[contains(@class,'cover')]");
-        string coverUrl = coverNode?.GetAttributeValue("src", "") ?? "";
+        coverUrl = coverNode?.GetAttributeValue("src", "") ?? "";
         if (!string.IsNullOrEmpty(coverUrl) && !coverUrl.StartsWith("http"))
             coverUrl = $"https://static.comix.to{coverUrl}";
+    }
 
         // ----- DESCRIPTION ---------------------------------------------------
         var descNode = doc.DocumentNode.SelectSingleNode("//div[contains(@class,'description')]");
