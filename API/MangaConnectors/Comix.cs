@@ -380,8 +380,8 @@ public class Comix : MangaConnector
             }
 
             // -----------------------------------------------------------------
-            // The referrer header that comix.to expects is still the manga page.
-            // We keep the same logic as before.
+            // The referrer header that comix.to expects when you click “Read” is
+            // still the manga page.  We keep the same logic as before.
             // -----------------------------------------------------------------
             string? referrer = null;
             if (chapterId.Obj.ParentManga.MangaConnectorIds?.Any() == true)
@@ -400,7 +400,7 @@ public class Comix : MangaConnector
             string? referrer)
         {
             // -------------------------------------------------------------
-            // Build the URL that returns the JSON payload.
+            // 1️⃣ Build the URL that returns the JSON payload.
             // -------------------------------------------------------------
             //   slugPart        = the full “hash‑slug” stored on the parent manga
             //   chapterIdOnSite = numeric id we stored when we built the Chapter object
@@ -417,12 +417,11 @@ public class Comix : MangaConnector
             string jsonUrl = $"https://comix.to/title/{slugPart}/{chapterNumericId}-chapter-{numberStr}";
 
             // -------------------------------------------------------------
-            // Issue a plain GET request (the endpoint returns JSON, not HTML).
+            // 2️⃣ Issue a plain GET request (the endpoint returns JSON, not HTML).
             // -------------------------------------------------------------
             HttpResponseMessage response = await downloadClient.MakeRequest(
                 jsonUrl,
-                RequestType.Default,
-                referrer);               // the referrer header is still required
+                RequestType.Default);          // no referrer needed for the JSON API
 
             if (!response.IsSuccessStatusCode)
             {
@@ -433,10 +432,10 @@ public class Comix : MangaConnector
             string payload = await response.Content.ReadAsStringAsync();
 
             // -------------------------------------------------------------
-            // Parse the “images” array.
-            //     The API always returns an object that contains a property called
-            //     "images" (array of strings).  If the format ever changes we only
-            //     have to adjust this block.
+            // 3️⃣ Parse the “images” array.
+            //    The API always returns an object that contains a property called
+            //    "images" (array of objects, each with a “url” field).  If the format
+            //    ever changes we only have to adjust this block.
             // -------------------------------------------------------------
             try
             {
@@ -457,15 +456,21 @@ public class Comix : MangaConnector
                     return [];
                 }
 
-                var imageUrls = new List<string>();
+                var urls = new List<string>();
                 foreach (JsonElement img in imagesElem.EnumerateArray())
                 {
-                    if (img.ValueKind == JsonValueKind.String)
-                        imageUrls.Add(img.GetString()!);
+                    // The sample you posted shows objects like:
+                    //   {"width":1560,"height":1200,"url":"https://…/01.webp"}
+                    if (img.ValueKind == JsonValueKind.Object &&
+                        img.TryGetProperty("url", out JsonElement urlEl) &&
+                        urlEl.GetString() is string u && !string.IsNullOrEmpty(u))
+                    {
+                        urls.Add(u);
+                    }
                 }
 
-                Log.InfoFormat("Found {0} image URLs for chapter {1}", imageUrls.Count, chapterId.Obj);
-                return imageUrls.ToArray();
+                Log.InfoFormat("Found {0} image URLs for chapter {1}", urls.Count, chapterId.Obj);
+                return urls.ToArray();
             }
             catch (JsonException ex)
             {
@@ -473,5 +478,4 @@ public class Comix : MangaConnector
                 return [];
             }
         }
-
     #endregion
