@@ -86,8 +86,6 @@ public class DownloadChapterFromMangaconnectorWorker(MangaConnectorId<Chapter> c
             return [];
         }
 
-        Log.Info($"{chapter.FullArchiveFilePath}");
-        
         if (chapter.FullArchiveFilePath is not { } saveArchiveFilePath)
         {  
             Log.Error("Failed getting saveArchiveFilePath");
