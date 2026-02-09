@@ -313,8 +313,6 @@ public class Comix : MangaConnector
                     !ch.TryGetProperty("number",     out JsonElement numEl))
                     continue;
 
-                Log.Info($"Retrieving chId: {idEl.GetInt32().ToString()}");
-                Log.Info($"Retrieving numberStr: {numEl.GetInt32().ToString()}");
                 string chapterIdOnSite = idEl.GetInt32().ToString();          // e.g. 7853102
                 string numberStr        = numEl.GetInt32().ToString();      // may be int or float in JSON
 
@@ -331,8 +329,13 @@ public class Comix : MangaConnector
                     nameEl.ValueKind != JsonValueKind.Null)
                     chTitle = HtmlEntity.DeEntitize(nameEl.GetString()?.Trim() ?? "");
 
+                Log.Info($"Retrieving volumeNumber: {volumeNumber}");
+                Log.Info($"Retrieving chTitle: {chTitle}");
+
+                Log.Info($"Retrieving chapterObj: {manga.Obj}, numberStr: {numberStr}, volumeNumber: {volumeNumber}, chTitle: {chTitle}}");
                 // Build Chapter object.
                 var chapter = new Chapter(manga.Obj, numberStr, volumeNumber, chTitle);
+                Log.Info($"Retrieving chapter: {chapter}");
 
                 // Canonical URL – the same pattern that you would see when clicking “Read”.
                 string canonicalUrl =
