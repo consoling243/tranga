@@ -278,7 +278,7 @@ public class Comix : MangaConnector
 
         while (page <= lastPage)
         {
-            string apiUrl = $"https://comix.to/api/v2/manga/{hashId}/chapters?limit=20&page={page}&order[number]=asc";
+            string apiUrl = $"https://comix.to/api/v2/manga/{hashId}/chapters?limit=100&page={page}&order[number]=asc";
 
             HttpResponseMessage response = downloadClient
                 .MakeRequest(apiUrl, RequestType.Default)
@@ -302,28 +302,12 @@ public class Comix : MangaConnector
             JsonElement result = root.GetProperty("result");
             JsonElement items  = result.GetProperty("items");
 
-            if (response.IsSuccessStatusCode)
-            {
-                Log.Info($"Retrieving json {json}");
-            }
-            if (response.IsSuccessStatusCode)
-            {
-                Log.Info($"Retrieving doc {doc}");
-            }
-                        if (response.IsSuccessStatusCode)
-            {
-                Log.Info($"Retrieving result {result}");
-            }
-                        if (response.IsSuccessStatusCode)
-            {
-                Log.Info($"Retrieving items {items}");
-            }
-
             // -----------------------------------------------------------------
             // 2️⃣ Parse every chapter returned on this page.
             // -----------------------------------------------------------------
             foreach (JsonElement ch in items.EnumerateArray())
             {
+                Log.Info($"Retrieving chapters: {ch}")
                 // Required fields – if any are missing we skip that entry.
                 if (!ch.TryGetProperty("chapter_id", out JsonElement idEl) ||
                     !ch.TryGetProperty("number",     out JsonElement numEl))
@@ -357,6 +341,10 @@ public class Comix : MangaConnector
                                                         canonicalUrl);
                 chapter.MangaConnectorIds.Add(mcId);
                 allChapters.Add((chapter, mcId));
+                Log.Info($"Retrieving chId: {chapterIdOnSite}")
+                Log.Info($"Retrieving numberStr: {numberStr}")
+                Log.Info($"Retrieving mcId: {mcId}")
+                Log.Info($"Retrieving canonicalUrl: {canonicalUrl}")
             }
 
             // -----------------------------------------------------------------
