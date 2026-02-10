@@ -392,53 +392,105 @@ public class Comix : MangaConnector
     }
 
     private async Task<string[]> GetChapterImageUrlsAsync(
-        MangaConnectorId<Chapter> chapterId,
-        string? referrer)
+    MangaConnectorId<Chapter> chapterId,
+    string? referrer)
+{
+    // -----------------------------------------------------------------
+    // 1️⃣ Load the chapter page with a headless Chromium client.
+    // -----------------------------------------------------------------
+    await using var chromium = new ChromiumDownloadClient();
+
+    HttpResponseMessage response = await chromium.MakeRequest(
+        chapterId.WebsiteUrl!,
+        RequestType.Default,
+        referrer);
+
+    if (!response.IsSuccessStatusCode)
     {
-        await using var chromium = new ChromiumDownloadClient();
-
-        HttpResponseMessage response = await chromium.MakeRequest(
-            chapterId.WebsiteUrl!,
-            RequestType.Default,
-            referrer);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            Log.Error($"Failed to load chapter page – status {(int)response.StatusCode}");
-            return [];
-        }
-
-        string html = await response.Content.ReadAsStringAsync();
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        // Images look like: <img alt="Page 1" src="/media/manga/xxxxx.jpg">
-        // var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-        var docBody = doc.DocumentNode.SelectSingleNode("//body");
-        if (imgNodes == null || imgNodes.Count == 0)
-        {
-            Log.Warn("No page images found on chapter page.");
-            return [];
-        }
-
-        var imageUrls = imgNodes
-            .Select(img =>
-            {
-                string src = img.GetAttributeValue("src", "")
-                             ?? img.GetAttributeValue("data-src", "");
-
-                if (!string.IsNullOrEmpty(src))
-                    src = $"{src}";
-                    Log.Info($"Retrieving src: {src}");
-                return src;
-            })
-            .Where(u => !string.IsNullOrEmpty(u))
-            .ToArray();
-
-        Log.InfoFormat("Found {0} image URLs for chapter {1}", imageUrls.Length, chapterId.Obj);
-        return imageUrls;
+        Log.Error($"Failed to load chapter page – status {(int)response.StatusCode}");
+        return Array.Empty<string>();
     }
+
+    string html = await response.Content.ReadAsStringAsync();
+
+    // -----------------------------------------------------------------
+    // 2️⃣ Locate the <script> that contains the self.__next_f.push call.
+    // -----------------------------------------------------------------
+    var doc = new HtmlDocument();
+    doc.LoadHtml(html);
+
+    // The script we need is the one that starts with "self.__next_f.push"
+    var scriptNode = doc.DocumentNode
+        .SelectNodes("//script")
+        ?.FirstOrDefault(sn => sn.InnerText.TrimStart().StartsWith("self.__next_f.push", StringComparison.Ordinal));
+
+    if (scriptNode == null)
+    {
+        Log.Warn("Could not find the __next_f script block – falling back to old img‑scraper.");
+        return ExtractImgUrlsFallback(doc);
+    }
+
+    // -----------------------------------------------------------------
+    // 3️⃣ Pull out the JSON string argument from the push call.
+    //    Example snippet:
+    //      self.__next_f.push([1, "d:[\"$\",\"$L17\",null,{...}]"]);
+    // -----------------------------------------------------------------
+    var script = scriptNode.InnerText;
+
+    // Find the first double‑quote after the opening bracket – everything inside
+    // that pair of quotes (with escaped characters) is our JSON payload.
+    var payloadMatch = Regex.Match(script,
+        @"self\.__next_f\.push\(\[\d+,\s*""(?<payload>.+?)""\]\)",
+        RegexOptions.Singleline);
+
+    if (!payloadMatch.Success)
+    {
+        Log.Warn("Failed to extract the payload from __next_f script – using fallback.");
+        return ExtractImgUrlsFallback(doc);
+    }
+
+    // The payload is still escaped (\" etc.).  Un‑escape it so we get a clean JSON string.
+    string escapedJson = payloadMatch.Groups["payload"].Value;
+    string jsonString   = Regex.Unescape(escapedJson);
+
+    // -----------------------------------------------------------------
+    // 4️⃣ Parse the JSON and read the “images” array.
+    // -----------------------------------------------------------------
+    try
+    {
+        using var jsonDoc = JsonDocument.Parse(jsonString);
+        JsonElement root = jsonDoc.RootElement;
+
+        // The structure we care about is: { … , "chapter":{ … ,"images":[{"url":"…"},...]}, … }
+        if (!root.TryGetProperty("chapter", out JsonElement chapterEl) ||
+            !chapterEl.TryGetProperty("images",  out JsonElement imagesEl))
+        {
+            Log.Warn("JSON does not contain expected 'chapter.images' – fallback.");
+            return ExtractImgUrlsFallback(doc);
+        }
+
+        var urls = new List<string>();
+
+        foreach (JsonElement img in imagesEl.EnumerateArray())
+        {
+            if (img.TryGetProperty("url", out JsonElement urlEl))
+            {
+                string url = urlEl.GetString();
+                if (!string.IsNullOrWhiteSpace(url))
+                    urls.Add(url.Trim());
+            }
+        }
+
+        Log.InfoFormat("Found {0} image URLs for chapter {1}", urls.Count, chapterId.Obj);
+        return urls.ToArray();
+    }
+    catch (Exception ex)
+    {
+        Log.Error($"Error while parsing chapter JSON payload: {ex}");
+        // As a last resort we still try the old <img> scraper – it may work on older chapters.
+        return ExtractImgUrlsFallback(doc);
+    }
+}
 
     #endregion
 }
