@@ -369,100 +369,76 @@ public class Comix : MangaConnector
 
     #region CHAPTER IMAGES -----------------------------------------------------
 
-        private async Task<string[]> GetChapterImageUrlsAsync(
-            MangaConnectorId<Chapter> chapterId,
-            string? referrer)
+    internal override string[] GetChapterImageUrls(MangaConnectorId<Chapter> chapterId)
+    {
+        Log.InfoFormat("Fetching image URLs for chapter: {0}", chapterId.Obj);
+
+        if (chapterId.WebsiteUrl == null)
         {
-            await using var chromium = new ChromiumDownloadClient();
-
-            HttpResponseMessage response = await chromium.MakeRequest(
-                chapterId.WebsiteUrl!,
-                RequestType.Default,
-                referrer);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                Log.Error($"Failed to load chapter page – status {(int)response.StatusCode}");
-                return [];
-            }
-
-            string html = await response.Content.ReadAsStringAsync();
-            var doc = new HtmlDocument();
-            doc.LoadHtml(html);
-
-            // 1️⃣ Find the <script id="syncData"> block
-            var syncScriptNode = doc.DocumentNode.SelectSingleNode("//script[@id='syncData']");
-            if (syncScriptNode == null)
-            {
-                Log.Error("Missing <script id=\"syncData\"> – cannot extract image URLs.");
-                return [];
-            }
-
-            string jsonText = syncScriptNode.InnerText?.Trim().TrimStart("d:\"").Trim() ?? "";
-            if (string.IsNullOrEmpty(jsonText))
-            {
-                Log.Error("<script id=\"syncData\"> is empty.");
-                return [];
-            }
-
-            // The JSON may be prefixed with "d:" — strip it.
-            if (jsonText.StartsWith("d:\""))
-                jsonText = jsonText.Substring(2); // Remove "d:"
-
-            try
-            {
-                using var docJson = JsonDocument.Parse(jsonText);
-                var root = docJson.RootElement;
-
-                // Navigate to chapter.images array: d[0][1]["chapter"]["images"]
-                // From the HTML, we see the structure:
-                // ["$", "$L17", null, { "manga": {...}, "chapter": { ..., "images": [...] } }]
-                var tuple = root.EnumerateArray().FirstOrDefault();
-                if (!tuple.TryGetProperty(3, out JsonElement data))
-                {
-                    Log.Error("Failed to find 'data' (index 3) in syncData.");
-                    return [];
-                }
-
-                // Get chapter object
-                if (!data.TryGetProperty("chapter", out JsonElement chapterObj))
-                {
-                    Log.Warn("'chapter' not found in syncData data block.");
-                    return [];
-                }
-
-                // Extract images array
-                var images = chapterObj.GetProperty("images");
-                List<string> urls = new();
-                foreach (var img in images.EnumerateArray())
-                {
-                    string? url = img.GetProperty("url").GetString();
-                    if (!string.IsNullOrEmpty(url))
-                        urls.Add(url);
-                }
-
-                Log.InfoFormat("Found {0} image URLs via syncData for chapter {1}", urls.Count, chapterId.Obj);
-
-                return urls.ToArray();
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Failed to parse syncData JSON: {ex}");
-                // Fallback to old <img> parsing only as emergency (but unlikely to work for comix.to)
-                var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-                if (imgNodes == null || imgNodes.Count == 0)
-                    return [];
-
-                Log.Warn("Falling back to <img> fallback — this may fail on comix.to");
-
-                return imgNodes
-                    .Select(img =>
-                        img.GetAttributeValue("src", "") ??
-                        img.GetAttributeValue("data-src", ""))
-                    .Where(u => !string.IsNullOrEmpty(u))
-                    .ToArray();
-            }
+            Log.Error("Chapter URL is null – cannot continue.");
+            return [];
         }
+
+        // comix.to checks the referrer header.  We pass the manga page as referrer.
+        string? referrer = null;
+        if (chapterId.Obj.ParentManga.MangaConnectorIds?.Any() == true)
+        {
+            referrer = chapterId.Obj.ParentManga.MangaConnectorIds
+                .FirstOrDefault(id => id.MangaConnectorName == this.Name)?
+                .WebsiteUrl;
+        }
+
+        return GetChapterImageUrlsAsync(chapterId, referrer).GetAwaiter().GetResult();
+    }
+
+    private async Task<string[]> GetChapterImageUrlsAsync(
+        MangaConnectorId<Chapter> chapterId,
+        string? referrer)
+    {
+        await using var chromium = new ChromiumDownloadClient();
+
+        HttpResponseMessage response = await chromium.MakeRequest(
+            chapterId.WebsiteUrl!,
+            RequestType.Default,
+            referrer);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Log.Error($"Failed to load chapter page – status {(int)response.StatusCode}");
+            return [];
+        }
+
+        string html = await response.Content.ReadAsStringAsync();
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+
+        // Images look like: <img alt="Page 1" src="/media/manga/xxxxx.jpg">
+        // var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
+        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
+        var docBody = doc.DocumentNode.SelectSingleNode("//body");
+        if (imgNodes == null || imgNodes.Count == 0)
+        {
+            Log.Warn("No page images found on chapter page.");
+            return [];
+        }
+
+        var imageUrls = imgNodes
+            .Select(img =>
+            {
+                string src = img.GetAttributeValue("src", "")
+                             ?? img.GetAttributeValue("data-src", "");
+
+                if (!string.IsNullOrEmpty(src))
+                    src = $"{src}";
+                    Log.Info($"Retrieving src: {src}");
+                return src;
+            })
+            .Where(u => !string.IsNullOrEmpty(u))
+            .ToArray();
+
+        Log.InfoFormat("Found {0} image URLs for chapter {1}", imageUrls.Length, chapterId.Obj);
+        return imageUrls;
+    }
 
     #endregion
 }
