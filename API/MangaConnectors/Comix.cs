@@ -367,130 +367,102 @@ public class Comix : MangaConnector
 
     #endregion
 
-#region CHAPTER IMAGES -----------------------------------------------------
+    #region CHAPTER IMAGES -----------------------------------------------------
 
-    internal override string[] GetChapterImageUrls(MangaConnectorId<Chapter> chapterId)
-    {
-        Log.InfoFormat("Fetching image URLs for chapter: {0}", chapterId.Obj);
-
-        if (chapterId.WebsiteUrl == null)
+        private async Task<string[]> GetChapterImageUrlsAsync(
+            MangaConnectorId<Chapter> chapterId,
+            string? referrer)
         {
-            Log.Error("Chapter URL is null – cannot continue.");
-            return [];
-        }
+            await using var chromium = new ChromiumDownloadClient();
 
-        // comix.to checks the referrer header.  We pass the manga page as referrer.
-        string? referrer = null;
-        if (chapterId.Obj.ParentManga.MangaConnectorIds?.Any() == true)
-        {
-            referrer = chapterId.Obj.ParentManga.MangaConnectorIds
-                .FirstOrDefault(id => id.MangaConnectorName == this.Name)?
-                .WebsiteUrl;
-        }
+            HttpResponseMessage response = await chromium.MakeRequest(
+                chapterId.WebsiteUrl!,
+                RequestType.Default,
+                referrer);
 
-        return GetChapterImageUrlsAsync(chapterId, referrer).GetAwaiter().GetResult();
-    }
-
-    private async Task<string[]> GetChapterImageUrlsAsync(
-        MangaConnectorId<Chapter> chapterId,
-        string? referrer)
-    {
-        // -----------------------------------------------------------------
-        // 1️⃣ Load the chapter page (the same URL we already stored in
-        //    chapterId.WebsiteUrl).  ChromiumDownloadClient is used because
-        //    the site checks the Referrer header.
-        // -----------------------------------------------------------------
-        await using var chromium = new ChromiumDownloadClient();
-
-        HttpResponseMessage response = await chromium.MakeRequest(
-            chapterId.WebsiteUrl!,
-            RequestType.Default,
-            referrer);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            Log.Error($"Failed to load chapter page – status {(int)response.StatusCode}");
-            return [];
-        }
-
-        string html = await response.Content.ReadAsStringAsync();
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        // -----------------------------------------------------------------
-        // 2️⃣ Try the **new** way: find the <script> that contains the
-        //    JSON payload with the "images" array.
-        // -----------------------------------------------------------------
-        var scriptNode = doc.DocumentNode.SelectNodes("//script")
-            ?.FirstOrDefault(sn => sn.InnerText.Contains("\"chapter\"") &&
-                                   sn.InnerText.Contains("\"images\""));
-
-        if (scriptNode != null)
-        {
-            string scriptContent = scriptNode.InnerText;
-
-            // The JSON inside the script is escaped (e.g. \"url\":\"https://…\").
-            // Un‑escape it so we can treat it as plain JSON.
-            string unescaped = Regex.Unescape(scriptContent);
-
-            // Pull every URL from the "images" array.
-            var urlMatches = Regex.Matches(
-                unescaped,
-                @"""url""\s*:\s*""([^""]+)""",
-                RegexOptions.Singleline);
-
-            var urls = new List<string>();
-            foreach (Match m in urlMatches)
+            if (!response.IsSuccessStatusCode)
             {
-                if (!m.Success) continue;
-
-                string candidate = m.Groups[1].Value.Trim();
-
-                // Defensive: make sure it is a well‑formed absolute URL.
-                if (Uri.IsWellFormedUriString(candidate, UriKind.Absolute))
-                    urls.Add(candidate);
-            }
-
-            Log.InfoFormat(
-                "Found {0} image URLs via JSON script for chapter {1}",
-                urls.Count,
-                chapterId.Obj);
-
-            // If we managed to extract at least one URL we consider the job done.
-            if (urls.Count > 0)
-                return urls.ToArray();
-        }
-
-        // -----------------------------------------------------------------
-        // 3️⃣ Fallback – older pages still render <img> tags. Keep the old
-        //    logic as a safety net.
-        // -----------------------------------------------------------------
-        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-        if (imgNodes == null || imgNodes.Count == 0)
-            {
-                Log.Warn("No page images found on chapter page.");
+                Log.Error($"Failed to load chapter page – status {(int)response.StatusCode}");
                 return [];
             }
 
-        var imageUrls = imgNodes
-            .Select(img =>
+            string html = await response.Content.ReadAsStringAsync();
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+
+            // 1️⃣ Find the <script id="syncData"> block
+            var syncScriptNode = doc.DocumentNode.SelectSingleNode("//script[@id='syncData']");
+            if (syncScriptNode == null)
             {
-                // Some sites use data-src for lazy loading.
-                string src = img.GetAttributeValue("src", "")
-                             ?? img.GetAttributeValue("data-src", "");
+                Log.Error("Missing <script id=\"syncData\"> – cannot extract image URLs.");
+                return [];
+            }
 
-                return src?.Trim() ?? "";
-            })
-            .Where(u => !string.IsNullOrEmpty(u))
-            .ToArray();
+            string jsonText = syncScriptNode.InnerText?.Trim().TrimStart('d:').Trim() ?? "";
+            if (string.IsNullOrEmpty(jsonText))
+            {
+                Log.Error("<script id=\"syncData\"> is empty.");
+                return [];
+            }
 
-        Log.InfoFormat(
-            "Found {0} image URLs via <img> fallback for chapter {1}",
-            imageUrls.Length,
-            chapterId.Obj);
+            // The JSON may be prefixed with "d:" — strip it.
+            if (jsonText.StartsWith("d:\""))
+                jsonText = jsonText.Substring(2); // Remove "d:"
 
-        return imageUrls;
-    }
+            try
+            {
+                using var docJson = JsonDocument.Parse(jsonText);
+                var root = docJson.RootElement;
+
+                // Navigate to chapter.images array: d[0][1]["chapter"]["images"]
+                // From the HTML, we see the structure:
+                // ["$", "$L17", null, { "manga": {...}, "chapter": { ..., "images": [...] } }]
+                var tuple = root.EnumerateArray().FirstOrDefault();
+                if (!tuple.TryGetProperty(3, out JsonElement data))
+                {
+                    Log.Error("Failed to find 'data' (index 3) in syncData.");
+                    return [];
+                }
+
+                // Get chapter object
+                if (!data.TryGetProperty("chapter", out JsonElement chapterObj))
+                {
+                    Log.Warn("'chapter' not found in syncData data block.");
+                    return [];
+                }
+
+                // Extract images array
+                var images = chapterObj.GetProperty("images");
+                List<string> urls = new();
+                foreach (var img in images.EnumerateArray())
+                {
+                    string? url = img.GetProperty("url").GetString();
+                    if (!string.IsNullOrEmpty(url))
+                        urls.Add(url);
+                }
+
+                Log.InfoFormat("Found {0} image URLs via syncData for chapter {1}", urls.Count, chapterId.Obj);
+
+                return urls.ToArray();
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to parse syncData JSON: {ex}");
+                // Fallback to old <img> parsing only as emergency (but unlikely to work for comix.to)
+                var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
+                if (imgNodes == null || imgNodes.Count == 0)
+                    return [];
+
+                Log.Warn("Falling back to <img> fallback — this may fail on comix.to");
+
+                return imgNodes
+                    .Select(img =>
+                        img.GetAttributeValue("src", "") ??
+                        img.GetAttributeValue("data-src", ""))
+                    .Where(u => !string.IsNullOrEmpty(u))
+                    .ToArray();
+            }
+        }
 
     #endregion
 }
