@@ -484,12 +484,6 @@ public class Comix : MangaConnector
         Log.InfoFormat("Found {0} image URLs for chapter {1}", urls.Count, chapterId.Obj);
         return urls.ToArray();
     }
-    catch (Exception ex)
-    {
-        Log.Error($"Error while parsing chapter JSON payload: {ex}");
-        // As a last resort we still try the old <img> scraper – it may work on older chapters.
-        return ExtractImgUrlsFallback(doc);
-    }
 }
 
     #endregion
