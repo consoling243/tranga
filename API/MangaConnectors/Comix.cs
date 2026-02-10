@@ -244,150 +244,152 @@ public class Comix : MangaConnector
 
     #endregion
 
-    #region CHAPTER IMAGES -----------------------------------------------------
+#region CHAPTER IMAGES -----------------------------------------------------
 
-        internal override string[] GetChapterImageUrls(MangaConnectorId<Chapter> chapterId)
+internal override string[] GetChapterImageUrls(MangaConnectorId<Chapter> chapterId)
+{
+    Log.InfoFormat("Fetching image URLs for chapter: {0}", chapterId.Obj);
+
+    if (chapterId.WebsiteUrl == null)
+    {
+        Log.Error("Chapter URL is null – cannot continue.");
+        return [];
+    }
+
+    // Keep the referrer logic you already had – some sites check it.
+    string? referrer = null;
+    if (chapterId.Obj.ParentManga.MangaConnectorIds?.Any() == true)
+    {
+        referrer = chapterId.Obj.ParentManga.MangaConnectorIds
+            .FirstOrDefault(id => id.MangaConnectorName == this.Name)?
+            .WebsiteUrl;
+    }
+
+    return GetChapterImageUrlsAsync(chapterId, referrer).GetAwaiter().GetResult();
+}
+
+private async Task<string[]> GetChapterImageUrlsAsync(
+    MangaConnectorId<Chapter> chapterId,
+    string? referrer)
+{
+    // -------------------------------------------------------------
+    // 1️⃣ Request the canonical chapter URL – it returns a JSON payload
+    //    that contains a "chapter" object with an "images" array.
+    // -------------------------------------------------------------
+    await using var chromium = new ChromiumDownloadClient();
+
+    HttpResponseMessage response = await chromium.MakeRequest(
+        chapterId.WebsiteUrl!,
+        RequestType.Default,
+        referrer);
+
+    if (!response.IsSuccessStatusCode)
+    {
+        Log.Error($"Failed to load chapter JSON – status {(int)response.StatusCode}");
+        return [];
+    }
+
+    string body = await response.Content.ReadAsStringAsync();
+
+    // -------------------------------------------------------------
+    // 2️⃣ Try to parse the whole response as JSON. If that fails,
+    //    fall back to extracting the substring that starts with
+    //    "\"chapter\":{" and ends at the matching closing brace.
+    // -------------------------------------------------------------
+    JsonDocument doc;
+    try
+    {
+        doc = JsonDocument.Parse(body);
+    }
+    catch (JsonException)
+    {
+        // The server sometimes wraps the JSON in a tiny HTML wrapper.
+        // Find the first occurrence of "\"chapter\":{" and parse from there.
+        int startIdx = body.IndexOf("\"chapter\":{", StringComparison.Ordinal);
+        if (startIdx < 0)
         {
-            Log.InfoFormat("Fetching image URLs for chapter: {0}", chapterId.Obj);
-
-            if (chapterId.WebsiteUrl == null)
-            {
-                Log.Error("Chapter URL is null – cannot continue.");
-                return [];
-            }
-
-            // Keep the referrer logic you already had – some sites check it.
-            string? referrer = null;
-            if (chapterId.Obj.ParentManga.MangaConnectorIds?.Any() == true)
-            {
-                referrer = chapterId.Obj.ParentManga.MangaConnectorIds
-                    .FirstOrDefault(id => id.MangaConnectorName == this.Name)?
-                    .WebsiteUrl;
-            }
-
-            return GetChapterImageUrlsAsync(chapterId, referrer).GetAwaiter().GetResult();
+            Log.Warn("Could not locate \"chapter\" object in response.");
+            return [];
         }
 
-        private async Task<string[]> GetChapterImageUrlsAsync(
-            MangaConnectorId<Chapter> chapterId,
-            string? referrer)
+        // Extract a balanced JSON object for the chapter block.
+        int braceDepth = 0;
+        int endIdx = startIdx;
+        for (int i = startIdx; i < body.Length; i++)
         {
-            // -------------------------------------------------------------
-            // 1️⃣ Request the canonical chapter URL – it returns a JSON payload
-            //    that contains a "chapter" object with an "images" array.
-            // -------------------------------------------------------------
-            HttpResponseMessage response = await downloadClient.MakeRequest(
-                chapterId.WebsiteUrl!,
-                RequestType.Default,
-                referrer);
-
-            if (!response.IsSuccessStatusCode)
+            char c = body[i];
+            if (c == '{') braceDepth++;
+            else if (c == '}')
             {
-                Log.Error($"Failed to load chapter JSON – status {(int)response.StatusCode}");
-                return [];
-            }
-
-            string body = await response.Content.ReadAsStringAsync();
-
-            // -------------------------------------------------------------
-            // 2️⃣ Try to parse the whole response as JSON. If that fails,
-            //    fall back to extracting the substring that starts with
-            //    "\"chapter\":{" and ends at the matching closing brace.
-            // -------------------------------------------------------------
-            JsonDocument doc;
-            try
-            {
-                doc = JsonDocument.Parse(body);
-            }
-            catch (JsonException)
-            {
-                // The server sometimes wraps the JSON in a tiny HTML wrapper.
-                // Find the first occurrence of "\"chapter\":{" and parse from there.
-                int startIdx = body.IndexOf("\"chapter\":{", StringComparison.Ordinal);
-                if (startIdx < 0)
+                braceDepth--;
+                if (braceDepth == 0)
                 {
-                    Log.Warn("Could not locate \"chapter\" object in response.");
-                    return [];
+                    endIdx = i;
+                    break;
                 }
-
-                // We need to extract a *balanced* JSON object.  The simplest
-                // approach is to take everything from the start of that token
-                // until the matching closing brace of the chapter object.
-                int braceDepth = 0;
-                int endIdx = startIdx;
-                for (int i = startIdx; i < body.Length; i++)
-                {
-                    char c = body[i];
-                    if (c == '{') braceDepth++;
-                    else if (c == '}')
-                    {
-                        braceDepth--;
-                        if (braceDepth == 0)
-                        {
-                            endIdx = i;
-                            break;
-                        }
-                    }
-                }
-
-                string chapterJson = $"{{{body.Substring(startIdx, endIdx - startIdx + 1)}}}";
-                doc = JsonDocument.Parse(chapterJson);
-            }
-
-            using (doc) // ensure disposal
-            {
-                JsonElement root = doc.RootElement;
-
-                // The API returns: { "status":200, "result":{ "chapter":{ ... } } }
-                // or sometimes directly { "chapter":{ ... } }.  We handle both.
-                JsonElement chapterNode;
-                if (root.TryGetProperty("result", out JsonElement resultNode) &&
-                    resultNode.TryGetProperty("chapter", out chapterNode))
-                {
-                    // ok – we have it
-                }
-                else if (root.TryGetProperty("chapter", out chapterNode))
-                {
-                    // ok – top‑level chapter object
-                }
-                else
-                {
-                    Log.Warn("JSON does not contain a 'chapter' object.");
-                    return [];
-                }
-
-                // ---------------------------------------------------------
-                // 3️⃣ Extract the images array.
-                //    Each element looks like: { "width":1560, "height":1200,
-                //                              "url":"https://.../01.webp" }
-                // ---------------------------------------------------------
-                if (!chapterNode.TryGetProperty("images", out JsonElement imagesArray))
-                {
-                    Log.Warn("'chapter' object does not contain an 'images' array.");
-                    return [];
-                }
-
-                var urls = new List<string>();
-                foreach (JsonElement img in imagesArray.EnumerateArray())
-                {
-                    if (img.TryGetProperty("url", out JsonElement urlEl))
-                    {
-                        string url = urlEl.GetString() ?? "";
-                        // The API already returns absolute URLs, but we still guard
-                        // against a possible relative one.
-                        if (!string.IsNullOrWhiteSpace(url) && !url.StartsWith("http"))
-                            url = $"https://comix.to{url}";
-                        urls.Add(url);
-                    }
-                }
-
-                Log.InfoFormat(
-                    "Found {0} image URLs for chapter {1}",
-                    urls.Count,
-                    chapterId.Obj);
-
-                return urls.ToArray();
             }
         }
-    #endregion
+
+        string chapterJson = $"{{{body.Substring(startIdx, endIdx - startIdx + 1)}}}";
+        doc = JsonDocument.Parse(chapterJson);
+    }
+
+    using (doc) // ensure disposal
+    {
+        JsonElement root = doc.RootElement;
+
+        // The API may return:
+        //   { "status":200, "result":{ "chapter":{ ... } } }
+        // or directly: { "chapter":{ ... } }
+        JsonElement chapterNode;
+        if (root.TryGetProperty("result", out JsonElement resultNode) &&
+            resultNode.TryGetProperty("chapter", out chapterNode))
+        {
+            // ok – we have it
+        }
+        else if (root.TryGetProperty("chapter", out chapterNode))
+        {
+            // ok – top‑level chapter object
+        }
+        else
+        {
+            Log.Warn("JSON does not contain a 'chapter' object.");
+            return [];
+        }
+
+        // ---------------------------------------------------------
+        // 3️⃣ Extract the images array.
+        //    Each element looks like:
+        //      { "width":1560, "height":1200,
+        //        "url":"https://…/01.webp" }
+        // ---------------------------------------------------------
+        if (!chapterNode.TryGetProperty("images", out JsonElement imagesArray))
+        {
+            Log.Warn("'chapter' object does not contain an 'images' array.");
+            return [];
+        }
+
+        var urls = new List<string>();
+        foreach (JsonElement img in imagesArray.EnumerateArray())
+        {
+            if (img.TryGetProperty("url", out JsonElement urlEl))
+            {
+                string url = urlEl.GetString() ?? "";
+                // The API already returns absolute URLs, but guard just in case.
+                if (!string.IsNullOrWhiteSpace(url) && !url.StartsWith("http"))
+                    url = $"https://comix.to{url}";
+                urls.Add(url);
+            }
+        }
+
+        Log.InfoFormat(
+            "Found {0} image URLs for chapter {1}",
+            urls.Count,
+            chapterId.Obj);
+
+        return urls.ToArray();
+    }
+}
+#endregion
+
 
