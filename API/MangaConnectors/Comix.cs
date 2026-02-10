@@ -366,7 +366,7 @@ public class Comix : MangaConnector
     }
 
     #endregion
-
+    
     #region CHAPTER IMAGES -----------------------------------------------------
 
         internal override string[] GetChapterImageUrls(MangaConnectorId<Chapter> chapterId)
@@ -379,10 +379,8 @@ public class Comix : MangaConnector
                 return [];
             }
 
-            // -----------------------------------------------------------------
-            // The referrer header that comix.to expects when you click “Read” is
-            // still the manga page.  We keep the same logic as before.
-            // -----------------------------------------------------------------
+            // The site checks the referrer header.  We keep the same behaviour as before
+            // and pass the manga page (if we have it) as the referrer.
             string? referrer = null;
             if (chapterId.Obj.ParentManga.MangaConnectorIds?.Any() == true)
             {
@@ -391,7 +389,7 @@ public class Comix : MangaConnector
                     .WebsiteUrl;
             }
 
-            // The new JSON‑API call is performed by the HttpDownloadClient (no Chromium needed).
+            // NOTE: we now use the *plain* Http client – no Chromium needed.
             return GetChapterImageUrlsAsync(chapterId, referrer).GetAwaiter().GetResult();
         }
 
@@ -399,83 +397,72 @@ public class Comix : MangaConnector
             MangaConnectorId<Chapter> chapterId,
             string? referrer)
         {
-            // -------------------------------------------------------------
-            // 1️⃣ Build the URL that returns the JSON payload.
-            // -------------------------------------------------------------
-            //   slugPart        = the full “hash‑slug” stored on the parent manga
-            //   chapterIdOnSite = numeric id we stored when we built the Chapter object
-            //   numberStr       = human readable chapter number (e.g. “69”, “1.5”)
-            // -------------------------------------------------------------
-            string slugPart = chapterId.Obj.ParentManga.MangaConnectorIds?
-                .FirstOrDefault(id => id.MangaConnectorName == this.Name)?
-                .IdOnConnectorSite
-                ?? throw new InvalidOperationException("Parent manga ID not found");
-
-            string chapterNumericId = chapterId.IdOnConnectorSite;               // e.g. 7853102
-            string numberStr       = chapterId.Obj.Number;                       // e.g. "69"
-
-            string jsonUrl = $"https://comix.to/title/{slugPart}/{chapterNumericId}-chapter-{numberStr}";
-
-            // -------------------------------------------------------------
-            // 2️⃣ Issue a plain GET request (the endpoint returns JSON, not HTML).
-            // -------------------------------------------------------------
+            // --------------------------------------------------------------
+            // 1️⃣  GET the canonical chapter page (the URL that was built
+            //     in GetChapters – e.g. https://comix.to/title/5zrxl‑kanojo-no-carrera/7853102-chapter-69 )
+            // --------------------------------------------------------------
             HttpResponseMessage response = await downloadClient.MakeRequest(
-                jsonUrl,
-                RequestType.Default);          // no referrer needed for the JSON API
+                chapterId.WebsiteUrl!,          // already the full canonical URL
+                RequestType.Default,
+                referrer);
 
             if (!response.IsSuccessStatusCode)
             {
-                Log.Error($"Failed to load chapter JSON – status {(int)response.StatusCode}");
+                Log.Error($"Failed to load chapter page – status {(int)response.StatusCode}");
                 return [];
             }
 
-            string payload = await response.Content.ReadAsStringAsync();
+            string html = await response.Content.ReadAsStringAsync();
 
-            // -------------------------------------------------------------
-            // 3️⃣ Parse the “images” array.
-            //    The API always returns an object that contains a property called
-            //    "images" (array of objects, each with a “url” field).  If the format
-            //    ever changes we only have to adjust this block.
-            // -------------------------------------------------------------
-            try
+            // --------------------------------------------------------------
+            // 2️⃣  The HTML you attached (comixchapter.html) contains a JSON
+            //     fragment that looks like:
+            //
+            //         "images": ["https://…/001.jpg","https://…/002.jpg", …]
+            //
+            //     We pull the array with a small regex, then pull every quoted URL.
+            // --------------------------------------------------------------
+            // Grab everything after the literal `"images"` key
+            var imagesArrayMatch = Regex.Match(
+                html,
+                @"""images""\s*:\s*$(?<list>.*?)$",
+                RegexOptions.Singleline);
+
+            if (!imagesArrayMatch.Success)
             {
-                using JsonDocument doc = JsonDocument.Parse(payload);
-                JsonElement root = doc.RootElement;
-
-                // Some responses are wrapped in a top‑level “result” object,
-                // others expose the array directly – handle both.
-                JsonElement imagesElem;
-                if (root.TryGetProperty("images", out JsonElement direct))
-                    imagesElem = direct;
-                else if (root.TryGetProperty("result", out JsonElement result) &&
-                        result.TryGetProperty("images", out JsonElement nested))
-                    imagesElem = nested;
-                else
-                {
-                    Log.Warn("JSON payload does not contain an \"images\" array");
-                    return [];
-                }
-
-                var urls = new List<string>();
-                foreach (JsonElement img in imagesElem.EnumerateArray())
-                {
-                    // The sample you posted shows objects like:
-                    //   {"width":1560,"height":1200,"url":"https://…/01.webp"}
-                    if (img.ValueKind == JsonValueKind.Object &&
-                        img.TryGetProperty("url", out JsonElement urlEl) &&
-                        urlEl.GetString() is string u && !string.IsNullOrEmpty(u))
-                    {
-                        urls.Add(u);
-                    }
-                }
-
-                Log.InfoFormat("Found {0} image URLs for chapter {1}", urls.Count, chapterId.Obj);
-                return urls.ToArray();
-            }
-            catch (JsonException ex)
-            {
-                Log.Error($"Failed to parse JSON from chapter page: {ex.Message}");
+                Log.Warn("Could not find an \"images\" array in the chapter page.");
                 return [];
             }
+
+            string listContent = imagesArrayMatch.Groups["list"].Value;
+
+            // Now extract each quoted URL inside that bracketed list
+            var urlMatches = Regex.Matches(listContent, @"""([^""]+)""");
+            if (urlMatches.Count == 0)
+            {
+                Log.Warn("The \"images\" array was empty or could not be parsed.");
+                return [];
+            }
+
+            // Build a clean absolute URL list – the API already returns full URLs,
+            // but we defensively prepend the base domain if something is relative.
+            var imageUrls = urlMatches
+                .Cast<Match>()
+                .Select(m => m.Groups[1].Value.Trim())
+                .Select(u =>
+                {
+                    if (string.IsNullOrWhiteSpace(u))
+                        return null;
+
+                    if (!u.StartsWith("http"))
+                        u = $"https://comix.to{(u.StartsWith("/") ? "" : "/")}{u}";
+                    return u;
+                })
+                .Where(u => !string.IsNullOrEmpty(u))
+                .ToArray()!;   // we know the collection is non‑empty
+
+            Log.InfoFormat("Found {0} images for chapter {1}", imageUrls.Length, chapterId.Obj);
+            return imageUrls;
         }
     #endregion
+
