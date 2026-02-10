@@ -367,7 +367,7 @@ public class Comix : MangaConnector
 
     #endregion
 
-    #region CHAPTER IMAGES -----------------------------------------------------
+#region CHAPTER IMAGES -----------------------------------------------------
 
     internal override string[] GetChapterImageUrls(MangaConnectorId<Chapter> chapterId)
     {
@@ -395,6 +395,11 @@ public class Comix : MangaConnector
         MangaConnectorId<Chapter> chapterId,
         string? referrer)
     {
+        // -----------------------------------------------------------------
+        // 1️⃣ Load the chapter page (the same URL we already stored in
+        //    chapterId.WebsiteUrl).  ChromiumDownloadClient is used because
+        //    the site checks the Referrer header.
+        // -----------------------------------------------------------------
         await using var chromium = new ChromiumDownloadClient();
 
         HttpResponseMessage response = await chromium.MakeRequest(
@@ -412,34 +417,79 @@ public class Comix : MangaConnector
         var doc = new HtmlDocument();
         doc.LoadHtml(html);
 
-        // Images look like: <img alt="Page 1" src="/media/manga/xxxxx.jpg">
-        // var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-        var docBody = doc.DocumentNode.SelectSingleNode("//body");
-        Log.Info($"Html Body for chapter: {chapterId.WebsiteUrl} ++++<>++++ {docBody.OuterHtml}");
-        Log.Info($"Image Nodes: {imgNodes.ToString}");
-        if (imgNodes == null || imgNodes.Count == 0)
+        // -----------------------------------------------------------------
+        // 2️⃣ Try the **new** way: find the <script> that contains the
+        //    JSON payload with the "images" array.
+        // -----------------------------------------------------------------
+        var scriptNode = doc.DocumentNode.SelectNodes("//script")
+            ?.FirstOrDefault(sn => sn.InnerText.Contains("\"chapter\"") &&
+                                   sn.InnerText.Contains("\"images\""));
+
+        if (scriptNode != null)
         {
-            Log.Warn("No page images found on chapter page.");
-            return [];
+            string scriptContent = scriptNode.InnerText;
+
+            // The JSON inside the script is escaped (e.g. \"url\":\"https://…\").
+            // Un‑escape it so we can treat it as plain JSON.
+            string unescaped = Regex.Unescape(scriptContent);
+
+            // Pull every URL from the "images" array.
+            var urlMatches = Regex.Matches(
+                unescaped,
+                @"""url""\s*:\s*""([^""]+)""",
+                RegexOptions.Singleline);
+
+            var urls = new List<string>();
+            foreach (Match m in urlMatches)
+            {
+                if (!m.Success) continue;
+
+                string candidate = m.Groups[1].Value.Trim();
+
+                // Defensive: make sure it is a well‑formed absolute URL.
+                if (Uri.IsWellFormedUriString(candidate, UriKind.Absolute))
+                    urls.Add(candidate);
+            }
+
+            Log.InfoFormat(
+                "Found {0} image URLs via JSON script for chapter {1}",
+                urls.Count,
+                chapterId.Obj);
+
+            // If we managed to extract at least one URL we consider the job done.
+            if (urls.Count > 0)
+                return urls.ToArray();
         }
 
-        var imageUrls = imgNodes
-            .Select(img =>
-            {
-                string src = img.GetAttributeValue("src", "")
-                             ?? img.GetAttributeValue("data-src", "");
+        // -----------------------------------------------------------------
+        // 3️⃣ Fallback – older pages still render <img> tags. Keep the old
+        //    logic as a safety net.
+        // -----------------------------------------------------------------
+    //     var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
+    //     if (imgNodes == null || imgNodes.Count == 0)
+    //     {
+    //         Log.Warn("No page images found on chapter page.");
+    //         return [];
+    //     }
 
-                if (!string.IsNullOrEmpty(src))
-                    src = $"{src}";
-                    Log.Info($"Retrieving src: {src}");
-                return src;
-            })
-            .Where(u => !string.IsNullOrEmpty(u))
-            .ToArray();
+    //     var imageUrls = imgNodes
+    //         .Select(img =>
+    //         {
+    //             // Some sites use data-src for lazy loading.
+    //             string src = img.GetAttributeValue("src", "")
+    //                          ?? img.GetAttributeValue("data-src", "");
 
-        Log.InfoFormat("Found {0} image URLs for chapter {1}", imageUrls.Length, chapterId.Obj);
-        return imageUrls;
+    //             return src?.Trim() ?? "";
+    //         })
+    //         .Where(u => !string.IsNullOrEmpty(u))
+    //         .ToArray();
+
+    //     Log.InfoFormat(
+    //         "Found {0} image URLs via <img> fallback for chapter {1}",
+    //         imageUrls.Length,
+    //         chapterId.Obj);
+
+    //     return imageUrls;
     }
 
     #endregion
