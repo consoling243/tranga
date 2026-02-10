@@ -465,31 +465,31 @@ public class Comix : MangaConnector
         // 3️⃣ Fallback – older pages still render <img> tags. Keep the old
         //    logic as a safety net.
         // -----------------------------------------------------------------
-    //     var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
-    //     if (imgNodes == null || imgNodes.Count == 0)
-    //     {
-    //         Log.Warn("No page images found on chapter page.");
-    //         return [];
-    //     }
+        var imgNodes = doc.DocumentNode.SelectNodes("//img[starts-with(@alt, '')]");
+        if (imgNodes == null || imgNodes.Count == 0)
+            {
+                Log.Warn("No page images found on chapter page.");
+                return [];
+            }
 
-    //     var imageUrls = imgNodes
-    //         .Select(img =>
-    //         {
-    //             // Some sites use data-src for lazy loading.
-    //             string src = img.GetAttributeValue("src", "")
-    //                          ?? img.GetAttributeValue("data-src", "");
+        var imageUrls = imgNodes
+            .Select(img =>
+            {
+                // Some sites use data-src for lazy loading.
+                string src = img.GetAttributeValue("src", "")
+                             ?? img.GetAttributeValue("data-src", "");
 
-    //             return src?.Trim() ?? "";
-    //         })
-    //         .Where(u => !string.IsNullOrEmpty(u))
-    //         .ToArray();
+                return src?.Trim() ?? "";
+            })
+            .Where(u => !string.IsNullOrEmpty(u))
+            .ToArray();
 
-    //     Log.InfoFormat(
-    //         "Found {0} image URLs via <img> fallback for chapter {1}",
-    //         imageUrls.Length,
-    //         chapterId.Obj);
+        Log.InfoFormat(
+            "Found {0} image URLs via <img> fallback for chapter {1}",
+            imageUrls.Length,
+            chapterId.Obj);
 
-    //     return imageUrls;
+        return imageUrls;
     }
 
     #endregion
