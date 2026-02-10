@@ -398,7 +398,7 @@ public class Comix : MangaConnector
                 return [];
             }
 
-            string jsonText = syncScriptNode.InnerText?.Trim().TrimStart('d:').Trim() ?? "";
+            string jsonText = syncScriptNode.InnerText?.Trim().TrimStart("d:\"").Trim() ?? "";
             if (string.IsNullOrEmpty(jsonText))
             {
                 Log.Error("<script id=\"syncData\"> is empty.");
