@@ -424,12 +424,6 @@ public class Comix : MangaConnector
         .SelectNodes("//script")
         ?.FirstOrDefault(sn => sn.InnerText.TrimStart().StartsWith("self.__next_f.push", StringComparison.Ordinal));
 
-    if (scriptNode == null)
-    {
-        Log.Warn("Could not find the __next_f script block – falling back to old img‑scraper.");
-        return ExtractImgUrlsFallback(doc);
-    }
-
     // -----------------------------------------------------------------
     // 3️⃣ Pull out the JSON string argument from the push call.
     //    Example snippet:
@@ -442,12 +436,6 @@ public class Comix : MangaConnector
     var payloadMatch = Regex.Match(script,
         @"self\.__next_f\.push\(\[\d+,\s*""(?<payload>.+?)""\]\)",
         RegexOptions.Singleline);
-
-    if (!payloadMatch.Success)
-    {
-        Log.Warn("Failed to extract the payload from __next_f script – using fallback.");
-        return ExtractImgUrlsFallback(doc);
-    }
 
     // The payload is still escaped (\" etc.).  Un‑escape it so we get a clean JSON string.
     string escapedJson = payloadMatch.Groups["payload"].Value;
@@ -462,16 +450,19 @@ public class Comix : MangaConnector
         JsonElement root = jsonDoc.RootElement;
 
         // The structure we care about is: { … , "chapter":{ … ,"images":[{"url":"…"},...]}, … }
-        if (!root.TryGetProperty("chapter", out JsonElement chapterEl) ||
-            !chapterEl.TryGetProperty("images",  out JsonElement imagesEl))
+         if (!root.TryGetProperty("chapter", out JsonElement chapterEl) ||
+             !chapterEl.TryGetProperty("images",  out JsonElement imagesEl))
         {
-            Log.Warn("JSON does not contain expected 'chapter.images' – fallback.");
-            return ExtractImgUrlsFallback(doc);
+            Log.Warn("JSON does not contain expected 'chapter.images'");
+            return Array.Empty<string>();
+
         }
 
+        root.TryGetProperty("chapter", out JsonElement chapterE);
+        chapterE.TryGetProperty("images", out JsonElement imagesE);
         var urls = new List<string>();
 
-        foreach (JsonElement img in imagesEl.EnumerateArray())
+        foreach (JsonElement img in imagesE.EnumerateArray())
         {
             if (img.TryGetProperty("url", out JsonElement urlEl))
             {
@@ -484,6 +475,13 @@ public class Comix : MangaConnector
         Log.InfoFormat("Found {0} image URLs for chapter {1}", urls.Count, chapterId.Obj);
         return urls.ToArray();
     }
+    
+    catch (Exception ex)
+        {
+            Log.WarnFormat("Error", ex.Message);
+            return Array.Empty<string>();
+
+        }
 }
 
     #endregion
