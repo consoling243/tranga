@@ -458,6 +458,9 @@ public class Comix : MangaConnector
 
         }
 
+        Log.InfoFormat("chapterEl", chapterEl);
+        Log.InfoFormat("imagesEl", imagesEl);
+
         root.TryGetProperty("chapter", out JsonElement chapterE);
         chapterE.TryGetProperty("images", out JsonElement imagesE);
         var urls = new List<string>();
