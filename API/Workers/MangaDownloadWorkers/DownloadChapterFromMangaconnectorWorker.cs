@@ -88,11 +88,11 @@ public class DownloadChapterFromMangaconnectorWorker(MangaConnectorId<Chapter> c
 
         if (chapter.FullArchiveFilePath is not { } saveArchiveFilePath)
         {  
-            Log.Warn("FullArchiveFilePath: " +  chapter.FullArchiveFilePath);
             Log.Error("Failed getting saveArchiveFilePath");
             return [];
         }
         Log.Debug($"Chapter path: {saveArchiveFilePath}");
+        Log.Debug($"Chapter path: {chapter.FullArchiveFilePath}");
         
         //Check if Publication Directory already exists
         string? directoryPath = Path.GetDirectoryName(saveArchiveFilePath);
