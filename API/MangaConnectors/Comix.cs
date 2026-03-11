@@ -440,6 +440,9 @@ public class Comix : MangaConnector
     // The payload is still escaped (\" etc.).  Un‑escape it so we get a clean JSON string.
     string escapedJson = payloadMatch.Groups["payload"].Value;
     string jsonString   = Regex.Unescape(escapedJson);
+    Log.InfoFormat("=======================");
+    Log.InfoFormat("JsonString for chapter: {0}", jsonString);
+    Log.InfoFormat("=======================");
 
     // -----------------------------------------------------------------
     // 4️⃣ Parse the JSON and read the “images” array.
