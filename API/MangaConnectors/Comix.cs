@@ -398,9 +398,9 @@ public class Comix : MangaConnector
     // -----------------------------------------------------------------
     // 1️⃣ Load the chapter page with a headless Chromium client.
     // -----------------------------------------------------------------
-    await using var chromium = new ChromiumDownloadClient();
+    //await using var chromium = new ChromiumDownloadClient();
 
-    HttpResponseMessage response = await chromium.MakeRequest(
+    HttpResponseMessage response = await downloadClient.MakeRequest(
         chapterId.WebsiteUrl!,
         RequestType.Default,
         referrer);
