@@ -418,11 +418,15 @@ public class Comix : MangaConnector
     // -----------------------------------------------------------------
     var doc = new HtmlDocument();
     doc.LoadHtml(html);
+    Log.InfoFormat("=======================");
+    Log.InfoFormat("HTML document for chapter: {0}", doc);
+    Log.InfoFormat("=======================");
+
 
     // The script we need is the one that starts with "self.__next_f.push"
     var scriptNode = doc.DocumentNode
         .SelectNodes("//script")
-        ?.LastOrDefault(sn => sn.InnerText.TrimStart().StartsWith("\"images\"", StringComparison.Ordinal));
+        ?.LastOrDefault(sn => sn.InnerText.TrimStart().StartsWith("self.__next_f.push", StringComparison.Ordinal));
 
     // -----------------------------------------------------------------
     // 3️⃣ Pull out the JSON string argument from the push call.
