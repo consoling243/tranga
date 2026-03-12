@@ -418,10 +418,6 @@ public class Comix : MangaConnector
     // -----------------------------------------------------------------
     var doc = new HtmlDocument();
     doc.LoadHtml(html);
-    Log.InfoFormat("=======================");
-    Log.InfoFormat("HTML document for chapter: {0}", doc);
-    Log.InfoFormat("=======================");
-
 
     // The script we need is the one that starts with "self.__next_f.push"
     var scriptNode = doc.DocumentNode
@@ -451,6 +447,27 @@ public class Comix : MangaConnector
     Log.InfoFormat("=======================");
     Log.InfoFormat("JsonString for chapter: {0}", jsonString);
     Log.InfoFormat("=======================");
+
+    // -----  regex --------------------------------------------------------------------
+    //var pattern = @"(?s)(?<=\"images\"\s*:\s*$).*?(?=$\s*,\s*\"_link\")";
+
+    Match m = Regex.Match(jsonString, 
+    @"(?s)(?<=""images""\s*:\s*$).*?(?=$\s*,\s*""_link"")");
+    if (m.Success)
+        {
+            // The captured text does NOT include the surrounding brackets.
+            // If you need a valid JSON array, add them back:
+            string imagesArrayJson = "[" + m.Value + "]";
+
+            Console.WriteLine("=== extracted images array ===");
+            Console.WriteLine(imagesArrayJson);
+        }
+    else
+        {
+            Console.WriteLine("No match found.");
+        }
+
+
 
     // -----------------------------------------------------------------
     // 4️⃣ Parse the JSON and read the “images” array.
