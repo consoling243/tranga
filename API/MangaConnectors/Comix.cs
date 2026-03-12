@@ -422,13 +422,17 @@ public class Comix : MangaConnector
     // The script we need is the one that starts with "self.__next_f.push"
     var scriptNode = doc.DocumentNode
         .SelectNodes("//script")
-        ?.FirstOrDefault(sn => sn.InnerText.TrimStart().StartsWith("self.__next_f.push", StringComparison.Ordinal));
+        ?.LastOrDefault(sn => sn.InnerText.TrimStart().StartsWith("\"images\"", StringComparison.Ordinal));
 
     // -----------------------------------------------------------------
     // 3️⃣ Pull out the JSON string argument from the push call.
     //    Example snippet:
     //      self.__next_f.push([1, "d:[\"$\",\"$L17\",null,{...}]"]);
     // -----------------------------------------------------------------
+    Log.InfoFormat("=======================");
+    Log.InfoFormat("ScriptNode for chapter: {0}", scriptNode);
+    Log.InfoFormat("=======================");
+
     var script = scriptNode.InnerText;
 
     // Find the first double‑quote after the opening bracket – everything inside
